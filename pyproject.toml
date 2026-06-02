@@ -1,0 +1,48 @@
+[project]
+name = "project-apm"
+version = "0.1.0"
+description = "Multi-agent top-down quantamental stock recommendation engine (FIN 419/589 APM + Piper Sandler Field Guide)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "yfinance>=0.2.48",
+    "pandas>=2.2",
+    "numpy>=2.1",
+    "fredapi>=0.5",
+    "requests>=2.32",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.12",
+    "rich>=13.9",
+    "typer>=0.13",
+    "polars>=1.12",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+
+[project.scripts]
+apm = "apm.__main__:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["apm", "api"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

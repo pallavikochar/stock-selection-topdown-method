@@ -1,0 +1,50 @@
+# Piper Sandler cyclicality spectrum: most to least cyclical.
+# Correlation of sector relative performance vs. S&P 500 earnings growth.
+# TUNABLE: Ordering is from the Field Guide — change only if your research disagrees.
+# Cyclicals outperform when earnings growth is RISING; defensives when FALLING.
+
+order_most_to_least_cyclical:
+  - sector: "Energy"
+    rank: 1
+    classification: "highly_cyclical"
+    notes: "Tied to commodity cycle; most correlated with global growth and oil"
+  - sector: "Real Estate"
+    rank: 2
+    classification: "highly_cyclical"
+    notes: "Rate-sensitive and credit-cycle driven; behaves cyclically despite income profile"
+  - sector: "Materials"
+    rank: 3
+    classification: "highly_cyclical"
+    notes: "Industrial metals and commodities; China PMI linkage"
+  - sector: "Financials"
+    rank: 4
+    classification: "cyclical"
+    notes: "Credit cycle and NIM; loan growth tied to economic activity"
+  - sector: "Communication Services"
+    rank: 5
+    classification: "cyclical"
+    notes: "Ad revenue cyclical; also has rate-sensitive growth stocks"
+  - sector: "Consumer Discretionary"
+    rank: 6
+    classification: "cyclical"
+    notes: "Consumer spending confidence; weakens as cycle matures"
+  - sector: "Industrials"
+    rank: 7
+    classification: "cyclical"
+    notes: "Cap-ex and manufacturing cycle; slight lag vs. earlier cyclicals"
+  - sector: "Technology"
+    rank: 8
+    classification: "growth_cyclical"
+    notes: "Earnings cyclical but rate-sensitive multiple; acts defensive in late cycle"
+  - sector: "Health Care"
+    rank: 9
+    classification: "defensive"
+    notes: "Non-discretionary demand; oil negative (-0.73) = outperforms when oil falls"
+  - sector: "Utilities"
+    rank: 10
+    classification: "defensive"
+    notes: "Rate-sensitive income; PMI negative = outperforms when growth slows"
+  - sector: "Consumer Staples"
+    rank: 11
+    classification: "highly_defensive"
+    notes: "Most defensive; PMI -0.74, copper -0.83 = strongest late-cycle / recession play"

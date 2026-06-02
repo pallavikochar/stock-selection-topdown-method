@@ -1,0 +1,32 @@
+# Current portfolio holdings for RCMP replacement logic.
+# TUNABLE: Replace placeholders with real positions before a live run.
+# The RecommendationAgent uses this to decide which holding a new idea replaces.
+
+# PLACEHOLDER: These are placeholder positions for demo mode.
+# Update with actual portfolio before a live run.
+
+holdings:
+  - ticker: "MSFT"
+    name: "Microsoft"
+    sector: "Technology"
+    purchase_price: 415.00
+    shares: 100
+    purchase_date: "2025-09-15"
+    thesis: "AI platform dominance + Azure cloud growth"
+    group: "growth"
+    notes: "Placeholder. Replace with actual position."
+
+  - ticker: "KO"
+    name: "Coca-Cola"
+    sector: "Consumer Staples"
+    purchase_price: 65.00
+    shares: 200
+    purchase_date: "2025-06-01"
+    thesis: "Defensive income; global brand moat"
+    group: "defensive"
+    notes: "Placeholder. Replace with actual position."
+
+replacement_rules:
+  - "A new Buy in a favored sector should replace the weakest holding in the same group (growth or defensive)"
+  - "Only recommend a replacement if the new idea's confidence score exceeds the existing holding's by ≥10 points"
+  - "Never recommend replacing more than one holding per run without explicit override"

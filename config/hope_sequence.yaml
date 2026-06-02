@@ -1,0 +1,86 @@
+# H.O.P.E. framework: rate-change transmission sequence (Piper Sandler).
+# A rate change hits Housing first, then Orders, then Profits, then Employment last.
+# TUNABLE: Typical lags are empirical estimates; vary with the size of the rate move.
+# Total transmission can take up to ~24 months from initial rate move to employment.
+
+framework:
+  description: "Rate-change transmission sequence — earliest to latest responding indicators"
+  total_transmission_months: 24
+  key_insight: "Employment is the LAST indicator to turn — do not wait for payrolls to confirm the cycle"
+
+stages:
+  Housing:
+    order: 1
+    label: "H — Housing"
+    indicators:
+      - name: "NAHB Housing Market Index"
+        fred_series: "NAHBMMI"
+        typical_lag_months: 1
+        notes: "Most rate-sensitive sector; turns first. <50 = pessimism."
+      - name: "Building Permits"
+        fred_series: "PERMIT"
+        typical_lag_months: 2
+        notes: "Forward-looking starts proxy"
+      - name: "Housing Starts"
+        fred_series: "HOUST"
+        typical_lag_months: 3
+    rate_change_lag_months_range: [1, 6]
+
+  Orders:
+    order: 2
+    label: "O — New Orders"
+    indicators:
+      - name: "ISM Manufacturing New Orders"
+        fred_series: "AMTUNO"
+        typical_lag_months: 4
+        notes: "Favorite LEI — earnings proxy. >50 expansion, <50 contraction."
+      - name: "Consumer Confidence — Buying Plans"
+        fred_series: "UMCSENT"
+        typical_lag_months: 5
+      - name: "Consumer New Orders"
+        fred_series: null
+        typical_lag_months: 6
+      - name: "Mfg & Trade Sales"
+        fred_series: "CMRMTSPL"
+        typical_lag_months: 7
+      - name: "Nondefense Capital Goods Orders ex-Aircraft"
+        fred_series: "NEWORDER"
+        typical_lag_months: 6
+    rate_change_lag_months_range: [4, 10]
+
+  Profits:
+    order: 3
+    label: "P — Profits"
+    indicators:
+      - name: "S&P 500 EPS Estimate Revisions"
+        fred_series: null
+        typical_lag_months: 8
+        notes: "Analyst cuts follow order weakness by a quarter or two"
+      - name: "Industrial Production"
+        fred_series: "INDPRO"
+        typical_lag_months: 9
+      - name: "Avg Weekly Hours Manufacturing"
+        fred_series: "AWHMAN"
+        typical_lag_months: 10
+    rate_change_lag_months_range: [7, 15]
+
+  Employment:
+    order: 4
+    label: "E — Employment"
+    indicators:
+      - name: "Nonfarm Payrolls"
+        fred_series: "PAYEMS"
+        typical_lag_months: 14
+        notes: "Last to turn. Strong payrolls do NOT mean the cycle is fine."
+      - name: "Personal Income ex-Transfer Payments"
+        fred_series: "W875RX1"
+        typical_lag_months: 15
+      - name: "Core CPI"
+        fred_series: "CPILFESL"
+        typical_lag_months: 18
+        notes: "Inflation rolls over near the end of transmission"
+      - name: "Initial Claims"
+        fred_series: "ICSA"
+        typical_lag_months: 16
+        notes: "Claims rise after payrolls stall"
+    rate_change_lag_months_range: [12, 24]

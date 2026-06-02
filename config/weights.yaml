@@ -1,0 +1,73 @@
+# Confidence score component weights — sum must equal 100.
+# TUNABLE: Weights reflect the ~70% macro / Brinson 90% asset-allocation doctrine.
+# Adjust if your process places more weight on fundamentals or technicals.
+# Penalties are applied AFTER the base score is computed; they can reduce below 0 (floored at 0).
+
+score_components:
+  macro_cycle_conviction:
+    weight: 30
+    description: "CMI clarity, clean Investment Clock fit, H.O.P.E. stage alignment"
+    rationale: "Heaviest weight — macro explains ~70% of a stock's move (Piper Sandler)"
+
+  sector_fit:
+    weight: 20
+    description: "Favored sector for current phase; macro-variable correlation aligns with scenario"
+    rationale: "Brinson: >90% of return variance from asset allocation, not selection"
+
+  style_factor_fit:
+    weight: 15
+    description: "Matches phase factor leaders; passes cross-universe check; correct size/style box"
+    rationale: "Factor exposure must hold across size/style/sector universes to count"
+
+  reward_to_risk:
+    weight: 15
+    description: "Probability-weighted upside / probability-weighted downside from scenario analysis"
+    rationale: "Quantitative margin of safety; must have ≥1 downside scenario"
+
+  fundamental_quality:
+    weight: 8
+    description: "Porter's Five Forces score + life-cycle position + narrative quality"
+    rationale: "Qualitative analysis informs the quant, not the other way around"
+
+  cross_sectional_valuation:
+    weight: 5
+    description: "Cheap vs. current peers (NOT vs. own history — time-series valuation is not a timing tool)"
+    rationale: "Valuation is a condition, not a catalyst"
+
+  technical_catalyst:
+    weight: 4
+    description: "Above 20-day and 200-day moving averages; intermarket backdrop"
+    rationale: "Entry timing / near-term catalyst overlay only"
+
+  stock_picking_regime:
+    weight: 3
+    description: "Low correlation = stock picking rewarded; high correlation = discount single-name conviction"
+    rationale: "Counterintuitive: high correlation = want MORE names, not fewer"
+
+total_base: 100
+
+penalties:
+  no_downside_scenario:
+    max_deduction: 15
+    description: "No scenario shows price below current — model integrity failure"
+    trigger: "All scenario valuations are above current price"
+
+  crowding:
+    max_deduction: 10
+    description: "Name is heavily crowded (high institutional ownership, consensus Buy)"
+    trigger: "Ownership concentration + analyst consensus ≥ 80% Buy"
+
+  terminal_g_warning:
+    max_deduction: 8
+    description: "DCF terminal growth rate exceeds nominal GDP or 10yr Treasury bound"
+    trigger: "terminal_g > min(nominal_gdp_growth, 10yr_yield)"
+
+  theme_not_universal:
+    max_deduction: 5
+    description: "Factor thesis only works in one size/style/sector slice"
+    trigger: "Cross-universe check fails (works in large-cap but not mid/small, etc.)"
+
+thresholds:
+  low_max: 50
+  medium_max: 74
+  high_min: 75

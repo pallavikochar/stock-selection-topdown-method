@@ -1,0 +1,56 @@
+# Industry-level macro beneficiary lookup.
+# Source: Piper Sandler Field Guide's three ranked lists.
+# TUNABLE: Add/remove industries as your coverage universe changes.
+# growth_beneficiary: high PMI correlation (outperform when PMI rises)
+# inflation_beneficiary: high CPI/commodity correlation (outperform when inflation rises)
+# risk_on_beneficiary: negative BAA spread correlation (outperform when spreads tighten)
+# risk_off_beneficiary: positive BAA spread correlation (outperform when spreads widen)
+
+growth_beneficiaries:
+  description: "Industries with high PMI correlation — buy when PMI is rising"
+  industries:
+    - {name: "Oil & Gas E&P", sector: "Energy", pmi_corr: +0.58}
+    - {name: "Metals & Mining", sector: "Materials", pmi_corr: +0.55}
+    - {name: "Machinery", sector: "Industrials", pmi_corr: +0.52}
+    - {name: "Semiconductors", sector: "Technology", pmi_corr: +0.50}
+    - {name: "Chemicals", sector: "Materials", pmi_corr: +0.48}
+    - {name: "Freight & Logistics", sector: "Industrials", pmi_corr: +0.45}
+    - {name: "Steel", sector: "Materials", pmi_corr: +0.44}
+    - {name: "Auto & Auto Parts", sector: "Consumer Discretionary", pmi_corr: +0.40}
+    - {name: "Diversified Financials", sector: "Financials", pmi_corr: +0.38}
+    - {name: "Banks", sector: "Financials", pmi_corr: +0.35}
+
+inflation_beneficiaries:
+  description: "Industries with high CPI / commodity correlation — buy when inflation rises"
+  industries:
+    - {name: "Oil & Gas E&P", sector: "Energy", cpi_corr: +0.72}
+    - {name: "Integrated Oil & Gas", sector: "Energy", cpi_corr: +0.68}
+    - {name: "Metals & Mining", sector: "Materials", cpi_corr: +0.62}
+    - {name: "Oil Field Services", sector: "Energy", cpi_corr: +0.60}
+    - {name: "Fertilizers & Ag Chemicals", sector: "Materials", cpi_corr: +0.58}
+    - {name: "Steel", sector: "Materials", cpi_corr: +0.55}
+    - {name: "Real Estate — Industrial", sector: "Real Estate", cpi_corr: +0.48}
+    - {name: "Refining & Marketing", sector: "Energy", cpi_corr: +0.45}
+    - {name: "Homebuilders", sector: "Consumer Discretionary", cpi_corr: +0.40}
+    - {name: "Banks", sector: "Financials", cpi_corr: +0.38}
+
+rising_risk_beneficiaries:
+  description: "Industries with positive BAA spread correlation — buy when spreads WIDEN (defensive)"
+  industries:
+    - {name: "Food & Beverage", sector: "Consumer Staples", baa_corr: +0.78}
+    - {name: "Pharma", sector: "Health Care", baa_corr: +0.70}
+    - {name: "Utilities — Electric", sector: "Utilities", baa_corr: +0.62}
+    - {name: "Tobacco", sector: "Consumer Staples", baa_corr: +0.60}
+    - {name: "Household Products", sector: "Consumer Staples", baa_corr: +0.58}
+    - {name: "Health Care Equipment", sector: "Health Care", baa_corr: +0.55}
+    - {name: "Managed Care", sector: "Health Care", baa_corr: +0.52}
+
+falling_risk_beneficiaries:
+  description: "Industries with negative BAA spread correlation — buy when spreads TIGHTEN (risk-on)"
+  industries:
+    - {name: "Banks", sector: "Financials", baa_corr: -0.68}
+    - {name: "Insurance", sector: "Financials", baa_corr: -0.55}
+    - {name: "Real Estate", sector: "Real Estate", baa_corr: -0.50}
+    - {name: "Metals & Mining", sector: "Materials", baa_corr: -0.45}
+    - {name: "Airlines", sector: "Industrials", baa_corr: -0.42}
+    - {name: "Auto & Auto Parts", sector: "Consumer Discretionary", baa_corr: -0.40}

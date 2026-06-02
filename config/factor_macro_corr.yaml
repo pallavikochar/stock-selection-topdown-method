@@ -1,0 +1,89 @@
+# Factor vs. macro variable correlations — cyclical vs. countercyclical classification.
+# Source: Piper Sandler Field Guide. TUNABLE: update with fresh factor-return data.
+# Cyclical factors: positive correlation with PMI, oil, rates → lead when growth accelerates.
+# Countercyclical factors: lead when growth slows (negative PMI corr).
+
+factors:
+  Book_Yield:
+    classification: "cyclical"
+    pmi_corr: +0.45
+    oil_corr: +0.38
+    ten_year_corr: +0.32
+    notes: "Value factor; outperforms in early/mid cycle when growth accelerates"
+
+  Beta_High:
+    classification: "cyclical"
+    pmi_corr: +0.52
+    oil_corr: +0.44
+    ten_year_corr: +0.28
+    notes: "Risk-on; leads recovery phases"
+
+  Negative_Earners:
+    classification: "cyclical"
+    pmi_corr: +0.48
+    oil_corr: +0.35
+    ten_year_corr: +0.22
+    notes: "Speculative names re-rate in recovery; avoid in slowdown"
+
+  Momentum:
+    classification: "cyclical"
+    pmi_corr: +0.30
+    oil_corr: +0.25
+    ten_year_corr: +0.15
+    notes: "Works in trending (expansion) markets; reverses at cycle turns"
+
+  Dividend_Yield_High:
+    classification: "cyclical"
+    pmi_corr: +0.28
+    oil_corr: +0.31
+    ten_year_corr: +0.35
+    notes: "COUNTERINTUITIVE: dividend yield is CYCLICAL (positive beta/leverage corr). Dividend ETFs carry big sector biases — do not treat as purely defensive."
+
+  ROE_High:
+    classification: "countercyclical"
+    pmi_corr: -0.30
+    oil_corr: -0.22
+    ten_year_corr: -0.18
+    notes: "Quality; outperforms when growth slows (Growth_Slowdown / Quality phases)"
+
+  EPS_Growth_High:
+    classification: "countercyclical"
+    pmi_corr: -0.28
+    oil_corr: -0.20
+    ten_year_corr: -0.15
+    notes: "Scarce growth commands premium in slowdown"
+
+  FCF_Yield_High:
+    classification: "countercyclical"
+    pmi_corr: -0.25
+    oil_corr: -0.18
+    ten_year_corr: -0.12
+    notes: "Quality-value; Quality and Growth_Slowdown phases"
+
+  Low_Volatility:
+    classification: "countercyclical"
+    pmi_corr: -0.40
+    oil_corr: -0.35
+    ten_year_corr: -0.25
+    notes: "Defensive; Trough and Growth_Slowdown"
+
+  Low_Beta:
+    classification: "countercyclical"
+    pmi_corr: -0.50
+    oil_corr: -0.42
+    ten_year_corr: -0.28
+    notes: "Capital preservation in Trough"
+
+  ROIC_High:
+    classification: "countercyclical"
+    pmi_corr: -0.22
+    oil_corr: -0.15
+    ten_year_corr: -0.10
+    notes: "Capital efficiency; favored in Quality and Growth_Slowdown"
+
+  Low_Debt_Equity:
+    classification: "countercyclical"
+    pmi_corr: -0.35
+    oil_corr: -0.28
+    ten_year_corr: -0.20
+    notes: "Balance sheet quality; Trough outperformer"

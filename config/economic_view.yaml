@@ -1,0 +1,71 @@
+# Current economic view — edit this file to update the macro thesis without touching code.
+# TUNABLE: All readings and manual overrides here feed EconomyAgent directly.
+
+as_of_date: "2026-06-02"
+
+# ── Growth ────────────────────────────────────────────────────────────────────
+growth:
+  level: "above_trend"           # "above_trend" | "below_trend"
+  direction: "falling"           # "rising" | "falling"  (1st derivative)
+  acceleration: "decelerating"   # "accelerating" | "decelerating" (2nd derivative)
+  gdp_growth_actual_pct: 1.8
+  long_run_trend_pct: 2.0        # TUNABLE: your estimate of potential GDP
+
+# ── Inflation ─────────────────────────────────────────────────────────────────
+inflation:
+  level: "elevated"              # "low" | "moderate" | "elevated" | "high"
+  direction: "rising"            # "rising" | "falling"
+  acceleration: "decelerating"   # still rising but slower
+  cpi_actual_pct: 3.5
+  core_cpi_actual_pct: 3.2
+  pce_actual_pct: 3.1
+  target_pct: 2.0                # Fed target
+
+# ── Leading Indicators (LEIs) — levels as of most recent print ────────────────
+# TUNABLE: Update monthly with FRED releases.
+leading_indicators:
+  ism_new_orders: 48.1           # <50 = contraction
+  ism_prices_paid: 58.9          # proxy for cost pressure
+  ism_manufacturing_composite: 49.2
+  ism_services: 52.4
+  nahb_housing_index: 43         # <50 = pessimism; FIRST in H.O.P.E.
+  building_permits_ann_mm: 1420  # thousands, annualized
+  initial_claims_k: 228          # thousands weekly
+  continuing_claims_k: 1892
+  conference_board_lei_mom_pct: -0.3
+  conference_board_lei_yoy_pct: -2.1
+  michigan_sentiment: 65.2
+  yield_curve_2s10s_bps: -15     # negative = inverted
+  sp500_level: 5380              # S&P 500 as LEI
+
+# ── Coincident / Lagging (confirmation only) ─────────────────────────────────
+coincident:
+  nonfarm_payrolls_mom_k: 185
+  unemployment_rate_pct: 4.1
+  industrial_production_yoy_pct: 0.8
+
+lagging:
+  core_cpi_yoy_pct: 3.2
+  avg_duration_unemployment_weeks: 22.4
+
+# ── Market Variables ──────────────────────────────────────────────────────────
+market:
+  fed_funds_rate_pct: 5.25
+  ten_year_yield_pct: 4.65
+  two_year_yield_pct: 4.80
+  wti_crude_usd: 78.40
+  copper_usd_lb: 4.12
+  dxy_dollar_index: 104.8
+  baa_credit_spread_pct: 1.72
+  hy_credit_spread_pct: 3.85
+  vix: 17.3
+  sp500_pe_ntm: 20.8
+  sp500_eps_growth_ntm_pct: 7.2
+
+# ── Manual overrides (if you want to force a specific read) ──────────────────
+# TUNABLE: Set any to non-null to override agent's computed read.
+overrides:
+  force_growth_direction: null    # e.g. "falling"
+  force_inflation_direction: null
+  force_clock_phase: null         # e.g. "STAGFLATION"
+  force_hope_stage: null          # e.g. "ORDERS"

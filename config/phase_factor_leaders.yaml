@@ -1,0 +1,124 @@
+# Factor leadership by JPM/Piper market cycle phase.
+# Source: Piper Sandler Field Guide. TUNABLE: weights are indicative, not published.
+# Cycle phases: Recovery → Expansion → Quality → Growth_Slowdown → Trough → (back to Recovery)
+
+phase_factor_leaders:
+  Recovery:
+    description: "Strong returns, P/E expansion, breadth broadening"
+    characteristics:
+      returns: "strong"
+      pe_trend: "expanding"
+      eps_trend: "recovering"
+    favored_factors:
+      - name: "High Beta"
+        rationale: "Risk-on rotation rewards highest-beta names first"
+        weight: 0.30
+      - name: "Low P/E NTM"
+        rationale: "Cheap names rerate fastest in early recovery"
+        weight: 0.25
+      - name: "High Dispersion"
+        rationale: "Stock picking rewarded; correlation low"
+        weight: 0.20
+      - name: "Small Cap Value"
+        rationale: "Most cyclical size/style box outperforms in recovery"
+        weight: 0.25
+    avoid_factors:
+      - "Low Volatility"
+      - "High Dividend Yield"
+      - "Large Cap Growth"
+
+  Expansion:
+    description: "Strong but narrowing leadership; EPS-driven"
+    characteristics:
+      returns: "strong"
+      pe_trend: "flat_to_rising"
+      eps_trend: "accelerating"
+    favored_factors:
+      - name: "High Book Yield"
+        weight: 0.25
+        rationale: "Value style works as earnings confirm the growth"
+      - name: "Low P/E NTM"
+        weight: 0.25
+        rationale: "Breadth still wide; cheap names rewarded"
+      - name: "High Cash Flow Yield"
+        weight: 0.30
+        rationale: "Quality-value intersection; companies generating cash"
+      - name: "Momentum"
+        weight: 0.20
+        rationale: "Winners keep winning in expansion"
+    avoid_factors:
+      - "Low Beta"
+      - "High EPS Variance"
+
+  Quality:
+    description: "Positive but low returns; EPS-led, multiple-flat"
+    characteristics:
+      returns: "positive_low"
+      pe_trend: "flat"
+      eps_trend: "peak_to_slowing"
+    favored_factors:
+      - name: "High FCF Yield"
+        weight: 0.30
+        rationale: "Cash generation matters as credit tightens"
+      - name: "High Dividend Yield"
+        weight: 0.25
+        rationale: "Income demand rises; note this is a CYCLICAL factor (see size_style_cyclicality)"
+      - name: "Low EPS Variance"
+        weight: 0.25
+        rationale: "Earnings predictability rewarded as uncertainty rises"
+      - name: "High ROIC"
+        weight: 0.20
+        rationale: "Capital efficiency matters at cycle peak"
+    avoid_factors:
+      - "High Beta"
+      - "Negative Earners"
+      - "Small Cap"
+
+  Growth_Slowdown:
+    description: "EPS growth slowing; defensive tilt"
+    characteristics:
+      returns: "low_to_negative"
+      pe_trend: "compressing"
+      eps_trend: "slowing"
+    favored_factors:
+      - name: "High EPS Growth"
+        weight: 0.30
+        rationale: "Scarce earnings growth commands premium as cycle slows"
+      - name: "Low Sales Variance"
+        weight: 0.25
+        rationale: "Revenue predictability in uncertain environment"
+      - name: "High ROIC"
+        weight: 0.25
+        rationale: "Quality at a premium"
+      - name: "Low Leverage"
+        weight: 0.20
+        rationale: "Balance sheet stress rises"
+    avoid_factors:
+      - "High Beta"
+      - "High Leverage"
+      - "Cyclicals"
+
+  Trough:
+    description: "Negative returns; EPS and P/E both falling"
+    characteristics:
+      returns: "negative"
+      pe_trend: "falling"
+      eps_trend: "falling"
+    favored_factors:
+      - name: "Low Beta"
+        weight: 0.30
+        rationale: "Capital preservation; low-beta outperforms in drawdowns"
+      - name: "Low Debt/Equity"
+        weight: 0.30
+        rationale: "Solvency risk elevated; clean balance sheets survive"
+      - name: "High Interest Coverage"
+        weight: 0.25
+        rationale: "Ability to service debt under stress"
+      - name: "Large Cap"
+        weight: 0.15
+        rationale: "Liquidity flight to large-caps"
+    avoid_factors:
+      - "High Beta"
+      - "Negative Earners"
+      - "High Leverage"
+      - "Small Cap"

@@ -1,0 +1,105 @@
+# Sector relative-performance vs. macro-variable correlation matrix.
+# Source: Piper Sandler "Interns' Field Guide to Macro & Markets."
+# TUNABLE: These are empirical correlations from the Field Guide — update if you have fresher data.
+# Sign convention: positive = sector outperforms when the variable rises; negative = underperforms.
+# null = not a primary driver (correlation not reported or below ±0.30 threshold).
+
+correlations:
+  Energy:
+    ten_year_yield: +0.77    # outperforms when rates rise
+    wti_oil:        +0.57
+    us_pmi:         +0.14
+    dxy:            null
+    retail_sales:   null
+    copper:         null
+    baa_spread:     -0.28    # underperforms when spreads widen (credit stress)
+
+  Materials:
+    ten_year_yield: null
+    wti_oil:        +0.49
+    us_pmi:         +0.43
+    dxy:            null
+    retail_sales:   null
+    copper:         +0.74    # strongest driver — copper is the materials barometer
+    baa_spread:     -0.45
+
+  Financials:
+    ten_year_yield: +0.44
+    wti_oil:        +0.52
+    us_pmi:         null
+    dxy:            null
+    retail_sales:   null
+    copper:         null
+    baa_spread:     -0.66    # hardest hit when spreads blow out (credit risk = bank risk)
+
+  Industrials:
+    ten_year_yield: null
+    wti_oil:        null
+    us_pmi:         null
+    dxy:            -0.63    # strong USD hurts multinational exporters
+    retail_sales:   null
+    copper:         null
+    baa_spread:     -0.55
+
+  Real_Estate:
+    ten_year_yield: -0.33    # rate-sensitive — suffers when rates rise
+    wti_oil:        null
+    us_pmi:         null
+    dxy:            +0.50
+    retail_sales:   null
+    copper:         null
+    baa_spread:     null
+
+  Technology:
+    ten_year_yield: -0.56    # long-duration assets; multiple compresses as rates rise
+    wti_oil:        null
+    us_pmi:         null
+    dxy:            null
+    retail_sales:   null
+    copper:         null
+    baa_spread:     null
+
+  Communication_Services:
+    ten_year_yield: -0.35
+    wti_oil:        null
+    us_pmi:         null
+    dxy:            null
+    retail_sales:   null
+    copper:         null
+    baa_spread:     null
+
+  Utilities:
+    ten_year_yield: null
+    wti_oil:        null
+    us_pmi:         -0.55    # outperforms when PMI falls (defensive rotation)
+    dxy:            null
+    retail_sales:   null
+    copper:         null
+    baa_spread:     +0.58    # outperforms when spreads widen (flight to safety)
+
+  Health_Care:
+    ten_year_yield: null
+    wti_oil:        -0.73    # strongly outperforms when oil falls
+    us_pmi:         null
+    dxy:            null
+    retail_sales:   null
+    copper:         null
+    baa_spread:     +0.66    # defensive — outperforms in credit stress
+
+  Consumer_Staples:
+    ten_year_yield: null
+    wti_oil:        null
+    us_pmi:         -0.74    # strongest negative PMI corr = ultimate late-cycle play
+    dxy:            null
+    retail_sales:   null
+    copper:         -0.83    # outperforms most when copper (and growth) falls
+    baa_spread:     +0.75    # most defensive credit play
+
+  Consumer_Discretionary:
+    ten_year_yield: null
+    wti_oil:        null
+    us_pmi:         null
+    dxy:            null
+    retail_sales:   +0.35
+    copper:         null
+    baa_spread:     null

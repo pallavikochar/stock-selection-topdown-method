@@ -1,0 +1,72 @@
+{
+  "snapshot": {
+    "as_of_date": "2026-06-02",
+    "growth_level": "above_trend",
+    "growth_direction": "falling",
+    "inflation_level": "elevated",
+    "inflation_direction": "rising",
+    "gdp_growth_pct": 1.8,
+    "cpi_pct": 3.5,
+    "core_cpi_pct": 3.2,
+    "pce_pct": 3.1,
+    "fed_funds_pct": 5.25,
+    "ten_year_yield_pct": 4.65,
+    "two_year_yield_pct": 4.80,
+    "yield_curve_2s10s_bps": -15,
+    "ism_manufacturing": 49.2,
+    "ism_new_orders": 48.1,
+    "ism_prices_paid": 58.9,
+    "ism_services": 52.4,
+    "nahb_index": 43,
+    "building_permits_ann_k": 1420,
+    "initial_claims_k": 228,
+    "continuing_claims_k": 1892,
+    "conference_board_lei_mom_pct": -0.3,
+    "conference_board_lei_yoy_pct": -2.1,
+    "michigan_sentiment": 65.2,
+    "nonfarm_payrolls_mom_k": 185,
+    "unemployment_rate_pct": 4.1,
+    "industrial_production_yoy_pct": 0.8,
+    "wti_crude_usd": 78.40,
+    "copper_usd_lb": 4.12,
+    "dxy": 104.8,
+    "baa_credit_spread_pct": 1.72,
+    "hy_credit_spread_pct": 3.85,
+    "vix": 17.3,
+    "sp500_pe_ntm": 20.8,
+    "sp500_eps_growth_ntm_pct": 7.2,
+    "sp500_level": 5380,
+    "cmi_score": 42.3,
+    "cmi_direction": "falling"
+  },
+  "fred_series": {
+    "AMTUNO": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [51.2, 50.3, 49.8, 49.5, 48.6, 48.1]
+    },
+    "NAHBMMI": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [50, 48, 46, 45, 44, 43]
+    },
+    "PERMIT": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [1480, 1470, 1455, 1445, 1430, 1420]
+    },
+    "ICSA": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [210, 215, 218, 222, 225, 228]
+    },
+    "PAYEMS": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [225, 215, 205, 198, 190, 185]
+    },
+    "CPILFESL": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [3.1, 3.1, 3.2, 3.2, 3.2, 3.2]
+    },
+    "INDPRO": {
+      "dates": ["2025-12-01","2026-01-01","2026-02-01","2026-03-01","2026-04-01","2026-05-01"],
+      "values": [1.2, 1.0, 0.9, 0.9, 0.8, 0.8]
+    }
+  }
+}

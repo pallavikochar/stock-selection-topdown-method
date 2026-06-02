@@ -1,0 +1,167 @@
+# Candidate ticker universe for screening — 127 tickers across all 11 GICS sectors.
+# TUNABLE: Add/remove tickers freely. Agents respect sector/style metadata.
+# market_cap: "large" = S&P 500 constituent; "mid" = mid-cap; "small" = small-cap
+
+sectors:
+  Energy:
+    tickers:
+      - {ticker: XOM,  name: "Exxon Mobil",          market_cap: large}
+      - {ticker: CVX,  name: "Chevron",               market_cap: large}
+      - {ticker: COP,  name: "ConocoPhillips",        market_cap: large}
+      - {ticker: EOG,  name: "EOG Resources",         market_cap: large}
+      - {ticker: SLB,  name: "SLB",                   market_cap: large}
+      - {ticker: HAL,  name: "Halliburton",            market_cap: large}
+      - {ticker: MPC,  name: "Marathon Petroleum",    market_cap: large}
+      - {ticker: PSX,  name: "Phillips 66",           market_cap: large}
+      - {ticker: VLO,  name: "Valero Energy",         market_cap: large}
+      - {ticker: OXY,  name: "Occidental Petroleum",  market_cap: large}
+      - {ticker: DVN,  name: "Devon Energy",          market_cap: mid}
+      - {ticker: HES,  name: "Hess",                  market_cap: mid}
+      - {ticker: MRO,  name: "Marathon Oil",          market_cap: mid}
+      - {ticker: FANG, name: "Diamondback Energy",    market_cap: mid}
+      - {ticker: APA,  name: "APA Corp",              market_cap: mid}
+
+  Materials:
+    tickers:
+      - {ticker: FCX,  name: "Freeport-McMoRan",      market_cap: large}
+      - {ticker: NEM,  name: "Newmont",               market_cap: large}
+      - {ticker: AA,   name: "Alcoa",                 market_cap: mid}
+      - {ticker: ALB,  name: "Albemarle",             market_cap: mid}
+      - {ticker: NUE,  name: "Nucor",                 market_cap: large}
+      - {ticker: STLD, name: "Steel Dynamics",        market_cap: mid}
+      - {ticker: LIN,  name: "Linde",                 market_cap: large}
+      - {ticker: APD,  name: "Air Products",          market_cap: large}
+      - {ticker: ECL,  name: "Ecolab",                market_cap: large}
+      - {ticker: SHW,  name: "Sherwin-Williams",      market_cap: large}
+      - {ticker: PPG,  name: "PPG Industries",        market_cap: large}
+      - {ticker: CF,   name: "CF Industries",         market_cap: mid}
+
+  Financials:
+    tickers:
+      - {ticker: JPM,   name: "JPMorgan Chase",       market_cap: large}
+      - {ticker: BAC,   name: "Bank of America",      market_cap: large}
+      - {ticker: WFC,   name: "Wells Fargo",          market_cap: large}
+      - {ticker: GS,    name: "Goldman Sachs",        market_cap: large}
+      - {ticker: MS,    name: "Morgan Stanley",       market_cap: large}
+      - {ticker: C,     name: "Citigroup",            market_cap: large}
+      - {ticker: BLK,   name: "BlackRock",            market_cap: large}
+      - {ticker: SCHW,  name: "Charles Schwab",       market_cap: large}
+      - {ticker: AXP,   name: "American Express",     market_cap: large}
+      - {ticker: V,     name: "Visa",                 market_cap: large}
+      - {ticker: MA,    name: "Mastercard",           market_cap: large}
+      - {ticker: COF,   name: "Capital One",          market_cap: large}
+      - {ticker: USB,   name: "US Bancorp",           market_cap: large}
+      - {ticker: PNC,   name: "PNC Financial",        market_cap: large}
+      - {ticker: TFC,   name: "Truist Financial",     market_cap: large}
+
+  Industrials:
+    tickers:
+      - {ticker: CAT,  name: "Caterpillar",           market_cap: large}
+      - {ticker: DE,   name: "Deere & Company",       market_cap: large}
+      - {ticker: HON,  name: "Honeywell",             market_cap: large}
+      - {ticker: GE,   name: "GE Aerospace",          market_cap: large}
+      - {ticker: RTX,  name: "RTX Corp",              market_cap: large}
+      - {ticker: LMT,  name: "Lockheed Martin",       market_cap: large}
+      - {ticker: BA,   name: "Boeing",                market_cap: large}
+      - {ticker: NOC,  name: "Northrop Grumman",      market_cap: large}
+      - {ticker: UNP,  name: "Union Pacific",         market_cap: large}
+      - {ticker: CSX,  name: "CSX Corp",              market_cap: large}
+      - {ticker: FDX,  name: "FedEx",                 market_cap: large}
+      - {ticker: UPS,  name: "United Parcel Service", market_cap: large}
+      - {ticker: EMR,  name: "Emerson Electric",      market_cap: large}
+      - {ticker: ITW,  name: "Illinois Tool Works",   market_cap: large}
+      - {ticker: ETN,  name: "Eaton",                 market_cap: large}
+
+  Technology:
+    tickers:
+      - {ticker: AAPL,  name: "Apple",                market_cap: large}
+      - {ticker: MSFT,  name: "Microsoft",            market_cap: large}
+      - {ticker: NVDA,  name: "NVIDIA",               market_cap: large}
+      - {ticker: AMD,   name: "Advanced Micro Devices", market_cap: large}
+      - {ticker: AVGO,  name: "Broadcom",             market_cap: large}
+      - {ticker: QCOM,  name: "Qualcomm",             market_cap: large}
+      - {ticker: TXN,   name: "Texas Instruments",    market_cap: large}
+      - {ticker: NOW,   name: "ServiceNow",           market_cap: large}
+      - {ticker: CRM,   name: "Salesforce",           market_cap: large}
+      - {ticker: ADBE,  name: "Adobe",                market_cap: large}
+      - {ticker: ORCL,  name: "Oracle",               market_cap: large}
+      - {ticker: IBM,   name: "IBM",                  market_cap: large}
+      - {ticker: CSCO,  name: "Cisco",                market_cap: large}
+      - {ticker: ANET,  name: "Arista Networks",      market_cap: large}
+      - {ticker: MU,    name: "Micron Technology",    market_cap: large}
+
+  Health_Care:
+    tickers:
+      - {ticker: UNH,  name: "UnitedHealth Group",    market_cap: large}
+      - {ticker: JNJ,  name: "Johnson & Johnson",     market_cap: large}
+      - {ticker: LLY,  name: "Eli Lilly",             market_cap: large}
+      - {ticker: ABBV, name: "AbbVie",                market_cap: large}
+      - {ticker: MRK,  name: "Merck",                 market_cap: large}
+      - {ticker: PFE,  name: "Pfizer",                market_cap: large}
+      - {ticker: AMGN, name: "Amgen",                 market_cap: large}
+      - {ticker: GILD, name: "Gilead Sciences",       market_cap: large}
+      - {ticker: CVS,  name: "CVS Health",            market_cap: large}
+      - {ticker: CI,   name: "Cigna",                 market_cap: large}
+      - {ticker: MDT,  name: "Medtronic",             market_cap: large}
+      - {ticker: ABT,  name: "Abbott Laboratories",   market_cap: large}
+      - {ticker: TMO,  name: "Thermo Fisher",         market_cap: large}
+      - {ticker: DHR,  name: "Danaher",               market_cap: large}
+      - {ticker: ISRG, name: "Intuitive Surgical",    market_cap: large}
+
+  Consumer_Discretionary:
+    tickers:
+      - {ticker: AMZN, name: "Amazon",                market_cap: large}
+      - {ticker: TSLA, name: "Tesla",                 market_cap: large}
+      - {ticker: HD,   name: "Home Depot",            market_cap: large}
+      - {ticker: LOW,  name: "Lowe's",                market_cap: large}
+      - {ticker: MCD,  name: "McDonald's",            market_cap: large}
+      - {ticker: SBUX, name: "Starbucks",             market_cap: large}
+      - {ticker: NKE,  name: "Nike",                  market_cap: large}
+      - {ticker: TJX,  name: "TJX Companies",         market_cap: large}
+      - {ticker: BKNG, name: "Booking Holdings",      market_cap: large}
+      - {ticker: F,    name: "Ford Motor",            market_cap: large}
+
+  Consumer_Staples:
+    tickers:
+      - {ticker: PG,   name: "Procter & Gamble",      market_cap: large}
+      - {ticker: KO,   name: "Coca-Cola",             market_cap: large}
+      - {ticker: PEP,  name: "PepsiCo",               market_cap: large}
+      - {ticker: WMT,  name: "Walmart",               market_cap: large}
+      - {ticker: COST, name: "Costco",                market_cap: large}
+      - {ticker: PM,   name: "Philip Morris",         market_cap: large}
+      - {ticker: MO,   name: "Altria",                market_cap: large}
+      - {ticker: CL,   name: "Colgate-Palmolive",     market_cap: large}
+
+  Communication_Services:
+    tickers:
+      - {ticker: META,  name: "Meta Platforms",       market_cap: large}
+      - {ticker: GOOGL, name: "Alphabet",             market_cap: large}
+      - {ticker: NFLX,  name: "Netflix",              market_cap: large}
+      - {ticker: DIS,   name: "Walt Disney",          market_cap: large}
+      - {ticker: CMCSA, name: "Comcast",              market_cap: large}
+      - {ticker: T,     name: "AT&T",                 market_cap: large}
+      - {ticker: VZ,    name: "Verizon",              market_cap: large}
+      - {ticker: TMUS,  name: "T-Mobile",             market_cap: large}
+
+  Utilities:
+    tickers:
+      - {ticker: NEE, name: "NextEra Energy",         market_cap: large}
+      - {ticker: DUK, name: "Duke Energy",            market_cap: large}
+      - {ticker: SO,  name: "Southern Company",       market_cap: large}
+      - {ticker: D,   name: "Dominion Energy",        market_cap: large}
+      - {ticker: AEP, name: "American Electric Power",market_cap: large}
+      - {ticker: EXC, name: "Exelon",                 market_cap: large}
+      - {ticker: SRE, name: "Sempra",                 market_cap: large}
+      - {ticker: XEL, name: "Xcel Energy",            market_cap: mid}
+
+  Real_Estate:
+    tickers:
+      - {ticker: AMT,  name: "American Tower",        market_cap: large}
+      - {ticker: PLD,  name: "Prologis",              market_cap: large}
+      - {ticker: CCI,  name: "Crown Castle",          market_cap: large}
+      - {ticker: EQIX, name: "Equinix",               market_cap: large}
+      - {ticker: PSA,  name: "Public Storage",        market_cap: large}
+      - {ticker: O,    name: "Realty Income",         market_cap: large}
+
+# Demo tickers — the 8 names that get full fundamental/valuation treatment in --demo mode
+demo_deep_dive_tickers: [XOM, CVX, FCX, JPM, ABBV, MPC, MSFT, KO]

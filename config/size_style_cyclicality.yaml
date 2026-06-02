@@ -1,0 +1,87 @@
+# Size/style cyclicality spectrum: most cyclical to most defensive.
+# Source: Piper Sandler Field Guide.
+# TUNABLE: These are empirical generalizations; individual stocks deviate.
+# Small-Cap Value = most cyclical (highest % negative earners, highest beta, highest D/E).
+# Large-Cap Growth = most defensive (lowest beta, highest ROE, lowest D/E).
+
+spectrum_most_to_least_cyclical:
+  - box: "Small Cap Value"
+    rank: 1
+    beta_avg: 1.35
+    pct_negative_earners: 0.28
+    avg_de_ratio: 1.42
+    avg_roe: 0.08
+    classification: "most_cyclical"
+    notes: "Outperforms in Recovery; severely hurt in Trough"
+
+  - box: "Small Cap Blend"
+    rank: 2
+    beta_avg: 1.20
+    pct_negative_earners: 0.20
+    avg_de_ratio: 1.10
+    avg_roe: 0.10
+    classification: "very_cyclical"
+
+  - box: "Mid Cap Value"
+    rank: 3
+    beta_avg: 1.10
+    pct_negative_earners: 0.15
+    avg_de_ratio: 0.95
+    avg_roe: 0.12
+    classification: "cyclical"
+
+  - box: "Small Cap Growth"
+    rank: 4
+    beta_avg: 1.25
+    pct_negative_earners: 0.32
+    avg_de_ratio: 0.80
+    avg_roe: 0.06
+    classification: "cyclical"
+    notes: "High beta but growth tilt; speculative names skew results"
+
+  - box: "Mid Cap Blend"
+    rank: 5
+    beta_avg: 1.05
+    pct_negative_earners: 0.10
+    avg_de_ratio: 0.85
+    avg_roe: 0.14
+    classification: "cyclical"
+
+  - box: "Mid Cap Growth"
+    rank: 6
+    beta_avg: 1.10
+    pct_negative_earners: 0.12
+    avg_de_ratio: 0.70
+    avg_roe: 0.16
+    classification: "moderate"
+
+  - box: "Large Cap Value"
+    rank: 7
+    beta_avg: 0.95
+    pct_negative_earners: 0.05
+    avg_de_ratio: 0.75
+    avg_roe: 0.18
+    classification: "moderate"
+
+  - box: "Large Cap Blend"
+    rank: 8
+    beta_avg: 0.98
+    pct_negative_earners: 0.06
+    avg_de_ratio: 0.65
+    avg_roe: 0.22
+    classification: "moderate_defensive"
+
+  - box: "Large Cap Growth"
+    rank: 9
+    beta_avg: 0.95
+    pct_negative_earners: 0.04
+    avg_de_ratio: 0.45
+    avg_roe: 0.32
+    classification: "most_defensive"
+    notes: "Lowest beta, highest ROE, lowest D/E. Outperforms in Trough and Growth_Slowdown. Tech dominates large-cap (not small-cap) — sector bias matters."
+
+key_principles:
+  - "The smaller and more value-oriented, the higher the % of negative earners and the more cyclical"
+  - "Large-cap Growth appears defensive because of high ROE and low beta — NOT because of sector"
+  - "Tech dominates Large Cap; dividend ETFs skew to Utilities/Staples/Financials — watch sector biases"
+  - "High Dividend Yield ETFs are CYCLICAL (see factor_macro_corr.yaml) — income ≠ defensive"
