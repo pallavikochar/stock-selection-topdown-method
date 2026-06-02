@@ -117,7 +117,7 @@ class Orchestrator:
     def _apply_output_to_context(agent_name: str, output: AgentOutput, context: Context) -> None:
         """Write an agent's typed data into the shared Context."""
         from apm.core.agent import (
-            CycleData, EconomyData, FundamentalData, RiskData,
+            CycleData, EconomyData, FundamentalData, LLMAnalysisData, RiskData,
             RecommendationsData, ScenariosData, SectorData, ScreenData,
             StyleData, ValuationData,
         )
@@ -131,6 +131,7 @@ class Orchestrator:
             "screen": ("screen", ScreenData),
             "risk_correlation": ("risk", RiskData),
             "recommendations": ("recommendations", RecommendationsData),
+            "llm_analysis": ("llm_analysis", LLMAnalysisData),
         }
 
         if agent_name in mapping:

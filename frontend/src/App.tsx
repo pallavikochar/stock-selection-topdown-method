@@ -7,7 +7,7 @@ import { HopeStrip } from "./components/HopeStrip";
 import { SectorHeatmap } from "./components/SectorHeatmap";
 import { ScenarioPanel } from "./components/ScenarioPanel";
 import { RecommendationsTable } from "./components/RecommendationsTable";
-import type { CycleData, EconomyData, SectorScore, Scenario, StockRecommendation } from "./lib/types";
+import type { CycleData, EconomyData, LLMAnalysisData, SectorScore, Scenario, StockRecommendation } from "./lib/types";
 
 type ActivePanel = "economy" | "cycle" | "scenarios" | "sectors" | "styles" | "screen" | "stocks" | "recommendations" | null;
 
@@ -49,6 +49,12 @@ export default function App() {
     enabled: !!funnel?.funnel.recommendations?.confidence,
   });
 
+  const { data: llmRaw } = useQuery({
+    queryKey: ["llm_analysis"],
+    queryFn: api.llmAnalysis,
+    enabled: !!funnel?.funnel.llm_analysis?.confidence,
+  });
+
   const handleRun = async () => {
     await api.run(true);
     setTimeout(() => window.location.reload(), 3000);
@@ -59,6 +65,7 @@ export default function App() {
   const sectorData = sectorRaw?.data as { ranked_sectors: SectorScore[]; favored: string[]; unfavored: string[] } | undefined;
   const scenarioData = scenarioRaw?.data as { scenarios: Scenario[] } | undefined;
   const recsData = recsRaw?.data as { ranked: StockRecommendation[] } | undefined;
+  const llmData = llmRaw?.data as LLMAnalysisData | undefined;
 
   const hasData = !!funnel && Object.keys(funnel.funnel).length > 0;
 
@@ -173,7 +180,7 @@ export default function App() {
             {recsData && (
               <section className="bg-navy-900 rounded-xl border border-navy-800 p-6">
                 <h3 className="text-sm font-600 text-navy-500 uppercase tracking-widest mb-4">Final Recommendations</h3>
-                <RecommendationsTable recommendations={recsData.ranked} />
+                <RecommendationsTable recommendations={recsData.ranked} llmAnalysis={llmData} />
               </section>
             )}
           </>

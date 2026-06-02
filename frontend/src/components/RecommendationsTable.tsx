@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ConfidenceBar } from "./ConfidenceBar";
-import type { StockRecommendation, ConfidenceLabel, Action } from "../lib/types";
+import { LLMAnalysis } from "./LLMAnalysis";
+import type { StockRecommendation, ConfidenceLabel, Action, LLMAnalysisData } from "../lib/types";
 
 interface Props {
   recommendations: StockRecommendation[];
+  llmAnalysis?: LLMAnalysisData;
 }
 
 const ACTION_STYLE: Record<Action, string> = {
@@ -24,7 +26,7 @@ function fmt(n: number, decimals = 0) {
   return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-export function RecommendationsTable({ recommendations }: Props) {
+export function RecommendationsTable({ recommendations, llmAnalysis }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
@@ -154,6 +156,19 @@ export function RecommendationsTable({ recommendations }: Props) {
                         />
                       </div>
                     </div>
+
+                    {/* LLM Analysis — tailwinds & headwinds */}
+                    {llmAnalysis?.analyses[rec.ticker] && (
+                      <div className="border-t border-navy-700/50 pt-5">
+                        <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-4">
+                          AI Analysis — Tailwinds & Headwinds
+                        </h4>
+                        <LLMAnalysis
+                          analysis={llmAnalysis.analyses[rec.ticker]}
+                          modelUsed={llmAnalysis.model_used}
+                        />
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}

@@ -1,4 +1,4 @@
-import type { AgentOutput, FunnelSummary, RecommendationsData } from "./types";
+import type { AgentOutput, FunnelSummary, LLMAnalysisData, RecommendationsData } from "./types";
 
 const BASE = "/api";
 
@@ -11,6 +11,7 @@ async function get<T>(path: string): Promise<T> {
 export const api = {
   funnel: () => get<FunnelSummary>("/funnel"),
   recommendations: () => get<{ data: RecommendationsData } & AgentOutput<RecommendationsData>>("/recommendations"),
+  llmAnalysis: () => get<{ data: LLMAnalysisData } & AgentOutput<LLMAnalysisData>>("/agents/llm_analysis"),
   agent: (name: string) => get<AgentOutput>(`/agents/${name}`),
   agents: () => get<{ agents: Record<string, { run: boolean; modified: number | null }> }>("/agents"),
   run: (demo = true) =>

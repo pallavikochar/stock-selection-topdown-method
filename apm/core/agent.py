@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -276,6 +276,31 @@ class RecommendationsData(BaseModel):
     as_of_date: str
 
 
+class VerifiedClaim(BaseModel):
+    claim: str
+    grounding: Literal["GROUNDED", "INFERRED", "SPECULATIVE"]
+    evidence: str  # specific quote/reference from source data, or reason it's speculative
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class LLMStockAnalysis(BaseModel):
+    ticker: str
+    tailwinds: list[VerifiedClaim]
+    headwinds: list[VerifiedClaim]
+    net_sentiment: Literal["BULLISH", "NEUTRAL", "BEARISH"]
+    sentiment_rationale: str
+    grounding_score: float = Field(
+        ge=0.0, le=1.0,
+        description="Fraction of claims classified GROUNDED or INFERRED (not SPECULATIVE)"
+    )
+
+
+class LLMAnalysisData(BaseModel):
+    analyses: dict[str, LLMStockAnalysis]
+    model_used: str
+    verification_method: str
+
+
 # ── Shared Context passed down the chain ─────────────────────────────────────
 
 
@@ -300,6 +325,7 @@ class Context(BaseModel):
     valuations: Optional[dict[str, ValuationData]] = None
     risk: Optional[RiskData] = None
     recommendations: Optional[RecommendationsData] = None
+    llm_analysis: Optional[LLMAnalysisData] = None
 
 
 # ── AgentOutput — every agent writes one of these ────────────────────────────

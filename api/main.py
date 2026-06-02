@@ -25,7 +25,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -33,7 +33,7 @@ app.add_middleware(
 AGENT_NAMES = [
     "economy", "cycle", "scenario", "sector", "style",
     "screen", "fundamental", "valuation", "risk_correlation",
-    "recommendations", "report",
+    "recommendations", "report", "llm_analysis",
 ]
 
 

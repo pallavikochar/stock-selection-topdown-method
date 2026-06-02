@@ -139,3 +139,28 @@ export interface RecommendationsData {
   recommended_position_count_rationale: string;
   as_of_date: string;
 }
+
+export type Grounding = "GROUNDED" | "INFERRED" | "SPECULATIVE";
+export type Sentiment = "BULLISH" | "NEUTRAL" | "BEARISH";
+
+export interface VerifiedClaim {
+  claim: string;
+  grounding: Grounding;
+  evidence: string;
+  confidence: number;
+}
+
+export interface LLMStockAnalysis {
+  ticker: string;
+  tailwinds: VerifiedClaim[];
+  headwinds: VerifiedClaim[];
+  net_sentiment: Sentiment;
+  sentiment_rationale: string;
+  grounding_score: number;
+}
+
+export interface LLMAnalysisData {
+  analyses: Record<string, LLMStockAnalysis>;
+  model_used: string;
+  verification_method: string;
+}
