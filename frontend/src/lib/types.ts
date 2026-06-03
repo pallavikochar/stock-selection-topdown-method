@@ -8,7 +8,7 @@ export type MarketCyclePhase = "Trough" | "Recovery" | "Expansion" | "Quality" |
 export type HopeStage = "Housing" | "Orders" | "Profits" | "Employment" | "Unknown";
 export type ConfidenceLabel = "Low" | "Medium" | "High";
 export type Favorability = "strongly_favored" | "favored" | "neutral" | "unfavored" | "strongly_unfavored";
-export type Action = "Buy" | "Hold" | "Replace" | "Avoid";
+export type Action = "Buy" | "Hold" | "Sell";
 export type CorrelationRegime = "High" | "Low";
 
 export interface EconomyData {
@@ -140,6 +140,83 @@ export interface RecommendationsData {
   as_of_date: string;
 }
 
+// ── Analyst (a13) ──────────────────────────────────────────────────────────
+export interface AnalystConsensus {
+  ticker: string;
+  consensus: string;
+  mean_target: number | null;
+  high_target: number | null;
+  low_target: number | null;
+  num_analysts: number;
+  buy_count: number;
+  hold_count: number;
+  sell_count: number;
+  upside_to_mean_pct: number | null;
+}
+
+// ── SEC Filings (a14) ───────────────────────────────────────────────────────
+export interface AnnualFinancials {
+  year: number;
+  revenue: number | null;
+  gross_profit: number | null;
+  operating_income: number | null;
+  net_income: number | null;
+  operating_cf: number | null;
+  capex: number | null;
+  free_cash_flow: number | null;
+  eps_basic: number | null;
+  gross_margin: number | null;
+  operating_margin: number | null;
+  net_margin: number | null;
+}
+
+export interface SECFilingsData {
+  ticker: string;
+  annual: AnnualFinancials[];
+  revenue_cagr_3yr_pct: number | null;
+  fcf_yield_pct: number | null;
+  debt_to_equity: number | null;
+  current_ratio: number | null;
+  return_on_equity_pct: number | null;
+  latest_10k_period: string | null;
+  latest_10q_period: string | null;
+}
+
+// ── Backtest (a15) ──────────────────────────────────────────────────────────
+export interface AnnualReturn {
+  year: number;
+  strategy_pct: number;
+  benchmark_pct: number;
+  excess_pct: number;
+  regime: string;
+}
+
+export interface BacktestMetrics {
+  cagr_pct: number;
+  benchmark_cagr_pct: number;
+  alpha_pct: number;
+  beta: number;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  max_drawdown_pct: number;
+  calmar_ratio: number;
+  win_rate_pct: number;
+  backtest_start: string;
+  backtest_end: string;
+  total_months: number;
+  outperformance_months: number;
+}
+
+export interface BacktestData {
+  strategy_name: string;
+  metrics: BacktestMetrics;
+  annual_returns: AnnualReturn[];
+  top_contributors: string[];
+  worst_contributors: string[];
+  methodology: string;
+}
+
+// ── LLM Analysis (a12) ─────────────────────────────────────────────────────
 export type Grounding = "GROUNDED" | "INFERRED" | "SPECULATIVE";
 export type Sentiment = "BULLISH" | "NEUTRAL" | "BEARISH";
 

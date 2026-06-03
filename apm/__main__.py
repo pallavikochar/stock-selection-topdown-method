@@ -38,6 +38,9 @@ def _build_orchestrator(demo: bool):
     from apm.agents.a10_recommendation import RecommendationAgent
     from apm.agents.a11_report import ReportAgent
     from apm.agents.a12_llm_analysis import LLMAnalysisAgent
+    from apm.agents.a13_analyst import AnalystAgent
+    from apm.agents.a14_sec_filings import SECFilingsAgent
+    from apm.agents.a15_backtest import BacktestAgent
     from apm.core.orchestrator import Orchestrator
 
     return (
@@ -55,6 +58,9 @@ def _build_orchestrator(demo: bool):
             RecommendationAgent(),
             ReportAgent(),
             LLMAnalysisAgent(),
+            AnalystAgent(),
+            SECFilingsAgent(),
+            BacktestAgent(),
         )
     )
 
@@ -82,7 +88,8 @@ def cmd_agents() -> None:
     output_dir = Path("output/agents")
     names = [
         "economy", "cycle", "scenario", "sector", "style", "screen",
-        "fundamental", "valuation", "risk_correlation", "recommendations", "report", "llm_analysis",
+        "fundamental", "valuation", "risk_correlation", "recommendations",
+        "report", "llm_analysis", "analyst", "sec_filings", "backtest",
     ]
     for name in names:
         path = output_dir / f"{name}.json"

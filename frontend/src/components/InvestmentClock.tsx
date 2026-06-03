@@ -69,7 +69,6 @@ export function InvestmentClock({ phase }: Props) {
       .attr("stroke", "oklch(24% 0.040 252)").attr("stroke-width", 0.5);
 
     // Axis labels
-    const labelStyle = { fill: "oklch(40% 0.035 252)", fontSize: "9px", fontFamily: "JetBrains Mono" };
     svg.append("text").text("Growth↑").attr("x", cx + r + 2).attr("y", cy - 4).attr("text-anchor", "start").style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
     svg.append("text").text("Growth↓").attr("x", cx - r - 2).attr("y", cy - 4).attr("text-anchor", "end").style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
     svg.append("text").text("Infl↑").attr("x", cx + 4).attr("y", cy - r + 10).style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
@@ -117,11 +116,11 @@ export function InvestmentClock({ phase }: Props) {
           aria-hidden="true"
         >
           <motion.div
-            style={{ originX: "50%", originY: "100%" }}
             animate={{ rotate: targetAngle }}
             transition={{ type: "spring", stiffness: 60, damping: 15 }}
             className="w-0.5 h-[90px] mb-[140px] rounded-full"
             style={{
+              originX: "50%", originY: "100%",
               background: `linear-gradient(to top, ${currentPhase.color}, transparent)`,
               transformOrigin: "bottom center",
             }}

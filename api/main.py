@@ -34,7 +34,11 @@ AGENT_NAMES = [
     "economy", "cycle", "scenario", "sector", "style",
     "screen", "fundamental", "valuation", "risk_correlation",
     "recommendations", "report", "llm_analysis",
+    "analyst", "sec_filings", "backtest",
 ]
+
+MACRO_CACHE = Path("apm/data/demo_cache/macro.json")
+ECON_CONFIG = Path("config/economic_view.yaml")
 
 
 def _read_agent_output(agent_name: str) -> dict[str, Any]:
@@ -86,6 +90,64 @@ async def get_funnel_summary() -> dict[str, Any]:
                 "warnings": raw.get("warnings", [])[:3],
             }
     return {"funnel": summary, "as_of_date": _get_run_date()}
+
+
+@app.get("/api/config/economy")
+async def get_economy_config() -> dict[str, Any]:
+    """Return current macro snapshot for the economy panel."""
+    if not MACRO_CACHE.exists():
+        raise HTTPException(404, "Macro cache not found")
+    raw = json.loads(MACRO_CACHE.read_text())
+    snap = raw.get("snapshot", {})
+    import yaml
+    cfg = yaml.safe_load(ECON_CONFIG.read_text()) if ECON_CONFIG.exists() else {}
+    regime_override = cfg.get("overrides", {}).get("force_clock_phase")
+    return {"snapshot": snap, "regime_override": regime_override}
+
+
+@app.post("/api/config/economy")
+async def update_economy_config(payload: dict[str, Any]) -> dict[str, Any]:
+    """Update macro snapshot variables and/or regime override, then return updated state."""
+    if not MACRO_CACHE.exists():
+        raise HTTPException(404, "Macro cache not found")
+
+    raw = json.loads(MACRO_CACHE.read_text())
+    snap = raw.get("snapshot", {})
+
+    FIELD_MAP = {
+        "pmi": "ism_manufacturing", "cpi": "cpi_pct",
+        "fed_funds": "fed_funds_pct", "ten_year_yield": "ten_year_yield_pct",
+        "yield_curve": "yield_curve_2s10s_bps", "baa_spread": "baa_credit_spread_pct",
+        "vix": "vix", "nahb": "nahb_index", "wti_crude": "wti_crude_usd",
+        "dxy": "dxy", "initial_claims": "initial_claims_k",
+        "ism_new_orders": "ism_new_orders", "unemployment": "unemployment_rate_pct",
+        "nfp": "nonfarm_payrolls_mom_k",
+    }
+    updated: list[str] = []
+    for frontend_key, cache_key in FIELD_MAP.items():
+        if frontend_key in payload:
+            snap[cache_key] = float(payload[frontend_key])
+            updated.append(frontend_key)
+
+    raw["snapshot"] = snap
+    MACRO_CACHE.write_text(json.dumps(raw, indent=2))
+
+    # Regime override — write to economic_view.yaml overrides
+    if "regime_override" in payload:
+        import yaml
+        cfg: dict = {}
+        if ECON_CONFIG.exists():
+            cfg = yaml.safe_load(ECON_CONFIG.read_text()) or {}
+        cfg.setdefault("overrides", {})
+        regime = payload["regime_override"]
+        if regime and regime != "AUTO":
+            cfg["overrides"]["force_clock_phase"] = regime
+        else:
+            cfg["overrides"].pop("force_clock_phase", None)
+        ECON_CONFIG.write_text(yaml.dump(cfg, default_flow_style=False))
+        updated.append("regime_override")
+
+    return {"status": "ok", "updated": updated}
 
 
 @app.post("/api/run")

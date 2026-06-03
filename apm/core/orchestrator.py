@@ -117,21 +117,22 @@ class Orchestrator:
     def _apply_output_to_context(agent_name: str, output: AgentOutput, context: Context) -> None:
         """Write an agent's typed data into the shared Context."""
         from apm.core.agent import (
-            CycleData, EconomyData, FundamentalData, LLMAnalysisData, RiskData,
-            RecommendationsData, ScenariosData, SectorData, ScreenData,
-            StyleData, ValuationData,
+            AnalystConsensus, BacktestData, CycleData, EconomyData, FundamentalData,
+            LLMAnalysisData, RiskData, RecommendationsData, ScenariosData,
+            SectorData, ScreenData, SECFilingsData, StyleData, ValuationData,
         )
 
         mapping = {
-            "economy": ("economy", EconomyData),
-            "cycle": ("cycle", CycleData),
-            "scenario": ("scenarios", ScenariosData),
-            "sector": ("sectors", SectorData),
-            "style": ("styles", StyleData),
-            "screen": ("screen", ScreenData),
-            "risk_correlation": ("risk", RiskData),
-            "recommendations": ("recommendations", RecommendationsData),
-            "llm_analysis": ("llm_analysis", LLMAnalysisData),
+            "economy":         ("economy",         EconomyData),
+            "cycle":           ("cycle",            CycleData),
+            "scenario":        ("scenarios",        ScenariosData),
+            "sector":          ("sectors",          SectorData),
+            "style":           ("styles",           StyleData),
+            "screen":          ("screen",           ScreenData),
+            "risk_correlation":("risk",             RiskData),
+            "recommendations": ("recommendations",  RecommendationsData),
+            "llm_analysis":    ("llm_analysis",     LLMAnalysisData),
+            "backtest":        ("backtest",         BacktestData),
         }
 
         if agent_name in mapping:
@@ -142,7 +143,17 @@ class Orchestrator:
             except Exception as exc:
                 log.warning("Could not parse %s output into context: %s", agent_name, exc)
 
-        # Per-ticker agents
+        # Per-ticker dict agents
+        elif agent_name == "analyst":
+            if isinstance(output.data, dict):
+                context.analyst = {
+                    k: AnalystConsensus.model_validate(v) for k, v in output.data.items()
+                }
+        elif agent_name == "sec_filings":
+            if isinstance(output.data, dict):
+                context.sec_filings = {
+                    k: SECFilingsData.model_validate(v) for k, v in output.data.items()
+                }
         elif agent_name == "fundamental":
             if isinstance(output.data, dict):
                 from apm.core.agent import FundamentalData

@@ -276,6 +276,87 @@ class RecommendationsData(BaseModel):
     as_of_date: str
 
 
+# ── Agent 13 — Analyst consensus ─────────────────────────────────────────────
+
+class AnalystConsensus(BaseModel):
+    ticker: str
+    consensus: str          # "Strong Buy" | "Buy" | "Hold" | "Sell" | "Strong Sell"
+    mean_target: Optional[float]
+    high_target: Optional[float]
+    low_target: Optional[float]
+    num_analysts: int
+    buy_count: int
+    hold_count: int
+    sell_count: int
+    upside_to_mean_pct: Optional[float]  # vs current price
+
+
+# ── Agent 14 — SEC / financials ───────────────────────────────────────────────
+
+class AnnualFinancials(BaseModel):
+    year: int
+    revenue: Optional[float]       # USD millions
+    gross_profit: Optional[float]
+    operating_income: Optional[float]
+    net_income: Optional[float]
+    operating_cf: Optional[float]
+    capex: Optional[float]
+    free_cash_flow: Optional[float]
+    eps_basic: Optional[float]
+    gross_margin: Optional[float]
+    operating_margin: Optional[float]
+    net_margin: Optional[float]
+
+
+class SECFilingsData(BaseModel):
+    ticker: str
+    annual: list[AnnualFinancials]   # last 4 fiscal years, newest first
+    revenue_cagr_3yr_pct: Optional[float]
+    fcf_yield_pct: Optional[float]
+    debt_to_equity: Optional[float]
+    current_ratio: Optional[float]
+    return_on_equity_pct: Optional[float]
+    latest_10k_period: Optional[str]
+    latest_10q_period: Optional[str]
+
+
+# ── Agent 15 — Backtest ───────────────────────────────────────────────────────
+
+class AnnualReturn(BaseModel):
+    year: int
+    strategy_pct: float
+    benchmark_pct: float
+    excess_pct: float
+    regime: str
+
+
+class BacktestMetrics(BaseModel):
+    cagr_pct: float
+    benchmark_cagr_pct: float
+    alpha_pct: float
+    beta: float
+    sharpe_ratio: float
+    sortino_ratio: float
+    max_drawdown_pct: float
+    calmar_ratio: float
+    win_rate_pct: float
+    backtest_start: str
+    backtest_end: str
+    total_months: int
+    outperformance_months: int
+
+
+class BacktestData(BaseModel):
+    strategy_name: str
+    metrics: BacktestMetrics
+    annual_returns: list[AnnualReturn]
+    top_contributors: list[str]
+    worst_contributors: list[str]
+    methodology: str
+
+
+# ── Agent 12 — LLM Analysis ───────────────────────────────────────────────────
+
 class VerifiedClaim(BaseModel):
     claim: str
     grounding: Literal["GROUNDED", "INFERRED", "SPECULATIVE"]
@@ -325,6 +406,9 @@ class Context(BaseModel):
     valuations: Optional[dict[str, ValuationData]] = None
     risk: Optional[RiskData] = None
     recommendations: Optional[RecommendationsData] = None
+    analyst: Optional[dict[str, AnalystConsensus]] = None
+    sec_filings: Optional[dict[str, SECFilingsData]] = None
+    backtest: Optional[BacktestData] = None
     llm_analysis: Optional[LLMAnalysisData] = None
 
 

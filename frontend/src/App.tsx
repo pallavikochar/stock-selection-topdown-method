@@ -7,9 +7,14 @@ import { HopeStrip } from "./components/HopeStrip";
 import { SectorHeatmap } from "./components/SectorHeatmap";
 import { ScenarioPanel } from "./components/ScenarioPanel";
 import { RecommendationsTable } from "./components/RecommendationsTable";
-import type { CycleData, EconomyData, LLMAnalysisData, SectorScore, Scenario, StockRecommendation } from "./lib/types";
+import { EconomyPanel } from "./components/EconomyPanel";
+import { BacktestResults } from "./components/BacktestResults";
+import type {
+  AnalystConsensus, BacktestData, CycleData, EconomyData,
+  LLMAnalysisData, SECFilingsData, SectorScore, Scenario, StockRecommendation,
+} from "./lib/types";
 
-type ActivePanel = "economy" | "cycle" | "scenarios" | "sectors" | "styles" | "screen" | "stocks" | "recommendations" | null;
+type ActivePanel = "economy" | "cycle" | "scenarios" | "sector" | "style" | "screen" | "fundamental" | "recommendations" | null;
 
 export default function App() {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
@@ -19,40 +24,60 @@ export default function App() {
     queryFn: api.funnel,
   });
 
+  const hasData = !!funnel && Object.keys(funnel.funnel).length > 0;
+
   const { data: economyRaw } = useQuery({
     queryKey: ["agent", "economy"],
     queryFn: () => api.agent("economy"),
-    enabled: !!funnel?.funnel.economy?.confidence,
+    enabled: hasData,
   });
 
   const { data: cycleRaw } = useQuery({
     queryKey: ["agent", "cycle"],
     queryFn: () => api.agent("cycle"),
-    enabled: !!funnel?.funnel.cycle?.confidence,
+    enabled: hasData,
   });
 
   const { data: sectorRaw } = useQuery({
     queryKey: ["agent", "sector"],
     queryFn: () => api.agent("sector"),
-    enabled: !!funnel?.funnel.sector?.confidence,
+    enabled: hasData,
   });
 
   const { data: scenarioRaw } = useQuery({
     queryKey: ["agent", "scenario"],
     queryFn: () => api.agent("scenario"),
-    enabled: !!funnel?.funnel.scenario?.confidence,
+    enabled: hasData,
   });
 
   const { data: recsRaw } = useQuery({
     queryKey: ["recommendations"],
     queryFn: api.recommendations,
-    enabled: !!funnel?.funnel.recommendations?.confidence,
+    enabled: hasData,
   });
 
   const { data: llmRaw } = useQuery({
     queryKey: ["llm_analysis"],
     queryFn: api.llmAnalysis,
-    enabled: !!funnel?.funnel.llm_analysis?.confidence,
+    enabled: hasData,
+  });
+
+  const { data: analystRaw } = useQuery({
+    queryKey: ["analyst"],
+    queryFn: api.analyst,
+    enabled: hasData,
+  });
+
+  const { data: secRaw } = useQuery({
+    queryKey: ["sec_filings"],
+    queryFn: api.secFilings,
+    enabled: hasData,
+  });
+
+  const { data: backtestRaw } = useQuery({
+    queryKey: ["backtest"],
+    queryFn: api.backtest,
+    enabled: hasData,
   });
 
   const handleRun = async () => {
@@ -60,14 +85,15 @@ export default function App() {
     setTimeout(() => window.location.reload(), 3000);
   };
 
-  const economy = economyRaw?.data as EconomyData | undefined;
-  const cycle = cycleRaw?.data as CycleData | undefined;
-  const sectorData = sectorRaw?.data as { ranked_sectors: SectorScore[]; favored: string[]; unfavored: string[] } | undefined;
-  const scenarioData = scenarioRaw?.data as { scenarios: Scenario[] } | undefined;
-  const recsData = recsRaw?.data as { ranked: StockRecommendation[] } | undefined;
-  const llmData = llmRaw?.data as LLMAnalysisData | undefined;
-
-  const hasData = !!funnel && Object.keys(funnel.funnel).length > 0;
+  const economy     = economyRaw?.data as EconomyData | undefined;
+  const cycle       = cycleRaw?.data  as CycleData   | undefined;
+  const sectorData  = sectorRaw?.data  as { ranked_sectors: SectorScore[]; favored: string[]; unfavored: string[] } | undefined;
+  const scenarioData= scenarioRaw?.data as { scenarios: Scenario[] } | undefined;
+  const recsData    = recsRaw?.data    as { ranked: StockRecommendation[] } | undefined;
+  const llmData     = llmRaw?.data     as LLMAnalysisData | undefined;
+  const analystData = analystRaw?.data as Record<string, AnalystConsensus> | undefined;
+  const secData     = secRaw?.data     as Record<string, SECFilingsData>   | undefined;
+  const backtestData= backtestRaw?.data as BacktestData | undefined;
 
   return (
     <div className="min-h-screen relative z-10">
@@ -77,21 +103,18 @@ export default function App() {
           <div>
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-cyan-accent animate-pulse" />
-              <span className="font-display font-700 text-lg tracking-tight text-white">
-                Project APM
-              </span>
+              <span className="font-display font-700 text-lg tracking-tight text-white">Project APM</span>
               <span className="text-navy-500 text-sm">·</span>
               <span className="text-navy-500 text-sm font-mono">Top-Down Process</span>
             </div>
             <p className="text-xs text-navy-500 mt-0.5 ml-5">
               From the economy down to the stock — macro explains ~70% of the move
+              <span className="ml-3 text-navy-600">· Pallavi Kochar</span>
             </p>
           </div>
           <div className="flex items-center gap-4">
             {funnel?.as_of_date && (
-              <span className="text-xs text-navy-500 font-mono">
-                {funnel.as_of_date}
-              </span>
+              <span className="text-xs text-navy-500 font-mono">{funnel.as_of_date}</span>
             )}
             <button
               onClick={handleRun}
@@ -129,7 +152,31 @@ export default function App() {
 
         {!funnelLoading && hasData && (
           <>
-            {/* Top-Down Funnel — hero */}
+            {/* ① Final Recommendations — top of page */}
+            {recsData && (
+              <section className="bg-navy-900 rounded-xl border border-navy-800 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-600 text-navy-500 uppercase tracking-widest">Final Recommendations</h3>
+                  {recsData.ranked.length > 0 && (
+                    <div className="flex gap-2 text-xs text-navy-500">
+                      <span className="text-green-signal font-600">{recsData.ranked.filter(r => r.action === "Buy").length} Buy</span>
+                      <span>·</span>
+                      <span className="text-amber-accent font-600">{recsData.ranked.filter(r => r.action === "Hold").length} Hold</span>
+                      <span>·</span>
+                      <span className="text-red-signal font-600">{recsData.ranked.filter(r => r.action === "Sell").length} Sell</span>
+                    </div>
+                  )}
+                </div>
+                <RecommendationsTable
+                  recommendations={recsData.ranked}
+                  llmAnalysis={llmData}
+                  analystData={analystData}
+                  secFilings={secData}
+                />
+              </section>
+            )}
+
+            {/* ② Top-Down Funnel */}
             <section>
               <TopDownFunnel
                 funnel={funnel.funnel}
@@ -140,7 +187,12 @@ export default function App() {
               />
             </section>
 
-            {/* Investment Clock + H.O.P.E. Strip */}
+            {/* ③ Economy macro dashboard */}
+            <section>
+              <EconomyPanel />
+            </section>
+
+            {/* ④ Investment Clock + H.O.P.E. */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {cycle && (
                 <div className="bg-navy-900 rounded-xl border border-navy-800 p-6">
@@ -160,7 +212,7 @@ export default function App() {
               )}
             </section>
 
-            {/* Scenarios + Sectors */}
+            {/* ⑤ Scenarios + Sectors */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {scenarioData && (
                 <div className="bg-navy-900 rounded-xl border border-navy-800 p-6">
@@ -176,11 +228,21 @@ export default function App() {
               )}
             </section>
 
-            {/* Recommendations */}
-            {recsData && (
+            {/* ⑥ 10-Year Backtest */}
+            {backtestData && (
               <section className="bg-navy-900 rounded-xl border border-navy-800 p-6">
-                <h3 className="text-sm font-600 text-navy-500 uppercase tracking-widest mb-4">Final Recommendations</h3>
-                <RecommendationsTable recommendations={recsData.ranked} llmAnalysis={llmData} />
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-600 text-navy-500 uppercase tracking-widest">10-Year Sector Rotation Backtest</h3>
+                    <p className="text-xs text-navy-600 mt-0.5">{backtestData.strategy_name}</p>
+                  </div>
+                  <div className="flex gap-4 text-xs font-mono">
+                    <span className="text-green-signal font-600">{backtestData.metrics.cagr_pct.toFixed(1)}% CAGR</span>
+                    <span className="text-navy-500">/</span>
+                    <span className="text-cyan-accent font-600">+{backtestData.metrics.alpha_pct.toFixed(1)}% α</span>
+                  </div>
+                </div>
+                <BacktestResults data={backtestData} />
               </section>
             )}
           </>

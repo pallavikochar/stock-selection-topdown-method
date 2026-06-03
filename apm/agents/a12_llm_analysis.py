@@ -366,11 +366,16 @@ class LLMAnalysisAgent(Agent):
     # ── Live two-pass path ────────────────────────────────────────────────────
 
     def _run_live(self, context: Context, api_key: str) -> AgentOutput:
-        from anthropic import Anthropic
-        client = Anthropic(api_key=api_key)
+        try:
+            from anthropic import Anthropic, RateLimitError, APIStatusError, APITimeoutError
+        except ImportError:
+            log.warning("anthropic package not installed — falling back to demo analysis")
+            return self._run_demo(context)
 
+        client = Anthropic(api_key=api_key)
         tickers = self._get_tickers(context)
         analyses: dict[str, LLMStockAnalysis] = {}
+        warnings_out: list[str] = []
 
         for ticker in tickers:
             try:
@@ -378,13 +383,30 @@ class LLMAnalysisAgent(Agent):
                 stock_ctx = self._build_context(ticker, context)
                 raw = self._two_pass(client, ticker, stock_ctx)
                 analyses[ticker] = self._build_analysis(ticker, raw)
+            except RateLimitError:
+                log.warning("Rate limit hit for %s — falling back to demo data", ticker)
+                warnings_out.append(f"{ticker}: rate limit reached; demo analysis used")
+                if ticker in _DEMO_ANALYSIS:
+                    analyses[ticker] = self._build_analysis(ticker, _DEMO_ANALYSIS[ticker])
+            except APITimeoutError:
+                log.warning("API timeout for %s — falling back to demo data", ticker)
+                warnings_out.append(f"{ticker}: API timeout; demo analysis used")
+                if ticker in _DEMO_ANALYSIS:
+                    analyses[ticker] = self._build_analysis(ticker, _DEMO_ANALYSIS[ticker])
+            except APIStatusError as exc:
+                log.warning("API error for %s (status %s): %s", ticker, exc.status_code, exc.message)
+                warnings_out.append(f"{ticker}: API error ({exc.status_code}); demo analysis used")
+                if ticker in _DEMO_ANALYSIS:
+                    analyses[ticker] = self._build_analysis(ticker, _DEMO_ANALYSIS[ticker])
             except Exception as exc:
-                log.warning("LLM analysis failed for %s: %s", ticker, exc)
-                # Fall back to demo data if available
+                log.warning("Unexpected LLM error for %s: %s", ticker, exc)
+                warnings_out.append(f"{ticker}: unexpected error; demo analysis used")
                 if ticker in _DEMO_ANALYSIS:
                     analyses[ticker] = self._build_analysis(ticker, _DEMO_ANALYSIS[ticker])
 
-        return self._make_output(context, analyses, model_used=MODEL, method="two-pass-claude")
+        output = self._make_output(context, analyses, model_used=MODEL, method="two-pass-claude")
+        output.warnings.extend(warnings_out)
+        return output
 
     def _two_pass(self, client: Any, ticker: str, stock_ctx: str) -> dict[str, Any]:
         """Pass 1: generate. Pass 2: verify each claim."""

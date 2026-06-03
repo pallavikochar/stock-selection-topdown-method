@@ -1,4 +1,4 @@
-import type { AgentOutput, FunnelSummary, LLMAnalysisData, RecommendationsData } from "./types";
+import type { AgentOutput, BacktestData, FunnelSummary, LLMAnalysisData, RecommendationsData } from "./types";
 
 const BASE = "/api";
 
@@ -9,11 +9,17 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  funnel: () => get<FunnelSummary>("/funnel"),
+  funnel:        () => get<FunnelSummary>("/funnel"),
   recommendations: () => get<{ data: RecommendationsData } & AgentOutput<RecommendationsData>>("/recommendations"),
-  llmAnalysis: () => get<{ data: LLMAnalysisData } & AgentOutput<LLMAnalysisData>>("/agents/llm_analysis"),
-  agent: (name: string) => get<AgentOutput>(`/agents/${name}`),
-  agents: () => get<{ agents: Record<string, { run: boolean; modified: number | null }> }>("/agents"),
+  llmAnalysis:   () => get<{ data: LLMAnalysisData } & AgentOutput<LLMAnalysisData>>("/agents/llm_analysis"),
+  analyst:       () => get<AgentOutput>("/agents/analyst"),
+  secFilings:    () => get<AgentOutput>("/agents/sec_filings"),
+  backtest:      () => get<{ data: BacktestData } & AgentOutput<BacktestData>>("/agents/backtest"),
+  agent:         (name: string) => get<AgentOutput>(`/agents/${name}`),
+  agents:        () => get<{ agents: Record<string, { run: boolean; modified: number | null }> }>("/agents"),
+  econConfig:    () => get<{ snapshot: Record<string, number | string | null>; regime_override: string | null }>("/config/economy"),
+  setEconConfig: (payload: Record<string, number | string>) =>
+    fetch(`${BASE}/config/economy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json()),
   run: (demo = true) =>
     fetch(`${BASE}/run?demo=${demo}`, { method: "POST" }).then((r) => r.json()),
 };

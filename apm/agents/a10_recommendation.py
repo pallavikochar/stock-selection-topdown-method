@@ -72,11 +72,13 @@ class RecommendationAgent(Agent):
             as_of_date=context.as_of_date,
         )
 
-        top_buys = [r for r in ranked if r.action == Action.BUY]
+        n_buy  = sum(1 for r in ranked if r.action == Action.BUY)
+        n_hold = sum(1 for r in ranked if r.action == Action.HOLD)
+        n_sell = sum(1 for r in ranked if r.action == Action.SELL)
         avg_confidence = sum(r.confidence_numeric for r in ranked) / len(ranked) if ranked else 0
         rationale = (
-            f"{len(ranked)} stocks analysed | "
-            f"Buy: {len(top_buys)} | "
+            f"{len(ranked)} stocks | "
+            f"Buy: {n_buy} | Hold: {n_hold} | Sell: {n_sell} | "
             f"Avg confidence: {avg_confidence:.1f} | "
             f"Top: {', '.join(r.ticker for r in ranked[:3])}"
         )
@@ -177,24 +179,26 @@ class RecommendationAgent(Agent):
         self, ticker: str, val, confidence: float, current_holdings: set
     ) -> Action:
         if ticker in current_holdings:
-            if confidence < 50 or val.expected_return_pct < 5:
-                return Action.REPLACE
+            # Sell if thesis has deteriorated; hold otherwise
+            if confidence < 48 or val.expected_return_pct < 3 or val.reward_to_risk < 1.0:
+                return Action.SELL
             return Action.HOLD
-        if confidence >= 65 and val.expected_return_pct > 10 and val.reward_to_risk > 1.5:
+        # Non-holdings: Buy if high conviction, Sell if strong negative signal, Hold otherwise
+        if confidence >= 63 and val.expected_return_pct > 8 and val.reward_to_risk > 1.5:
             return Action.BUY
-        if confidence < 40 or val.expected_return_pct < 0:
-            return Action.AVOID
+        if confidence < 38 or val.expected_return_pct < -5:
+            return Action.SELL
         return Action.HOLD
 
     def _determine_replacement(
         self, ticker: str, action: Action, holdings_by_group: dict, context: Context
     ) -> str | None:
+        """For BUY: suggest which holding (same sector group) to fund with."""
         if action != Action.BUY:
             return None
         from apm.data.fetchers import fetch_fundamentals
         fund = fetch_fundamentals(ticker)
         sector = fund.get("sector", "")
-        # Match by group heuristic: Energy/Materials = growth; Staples/Health = defensive
         target_group = (
             "growth" if sector in ("Energy", "Materials", "Financials", "Technology", "Industrials")
             else "defensive"
