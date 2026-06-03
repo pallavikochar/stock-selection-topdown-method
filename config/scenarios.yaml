@@ -3,49 +3,49 @@
 # TUNABLE: Per-stock alternative scenarios may differ; base case must be identical across all stocks.
 
 base_case:
-  name: "Stagflation / Soft-Landing"
-  probability: 0.55
+  name: "Soft Landing / Fed Pivot"
+  probability: 0.45
   macro:
-    gdp_growth_pct: 1.5          # real GDP YoY %
-    revenue_growth_pct: 4.5      # nominal revenue proxy (GDP + inflation)
-    cpi_pct: 3.5                 # CPI YoY %
-    fed_funds_pct: 5.25          # terminal fed funds rate
-    ten_year_yield_pct: 4.65     # 10yr Treasury
-    margin_trajectory: "compressed"   # squeezed by cost inflation
-    market_multiple_path: "flat"      # P/E stable; earnings do the work
-    earnings_growth_pct: 5.0
-    credit_spread_direction: "widening"
-    oil_direction: "rising"
-    pmi_direction: "contracting"      # ISM NO below 50, decelerating
+    gdp_growth_pct: 2.2          # real GDP YoY % — resilient labor market
+    revenue_growth_pct: 6.0      # nominal revenue proxy; inflation moderating
+    cpi_pct: 2.9                 # CPI trending toward 2% target
+    fed_funds_pct: 4.75          # Fed cut once, 25bps — market pricing 2 more in 2026
+    ten_year_yield_pct: 4.25     # 10yr Treasury pricing cuts but not aggressively
+    margin_trajectory: "stable"        # cost pressures easing, AI productivity offsets wages
+    market_multiple_path: "flat"       # P/E holds current level; earnings do the work
+    earnings_growth_pct: 8.0
+    credit_spread_direction: "stable"
+    oil_direction: "stable"
+    pmi_direction: "recovering"        # ISM creeping back toward 50
 
 bull_case:
   name: "Reflation / Re-acceleration"
-  probability: 0.25
+  probability: 0.30
   macro:
-    gdp_growth_pct: 2.8
-    revenue_growth_pct: 7.0
-    cpi_pct: 2.8
-    fed_funds_pct: 4.75
-    ten_year_yield_pct: 4.20
-    margin_trajectory: "recovering"
+    gdp_growth_pct: 3.0
+    revenue_growth_pct: 8.0
+    cpi_pct: 2.5
+    fed_funds_pct: 4.25
+    ten_year_yield_pct: 3.90
+    margin_trajectory: "expanding"
     market_multiple_path: "expanding"
-    earnings_growth_pct: 12.0
+    earnings_growth_pct: 14.0
     credit_spread_direction: "tightening"
     oil_direction: "stable"
     pmi_direction: "expanding"
 
 bear_case:
-  name: "Recession / Deflation"
-  probability: 0.20
+  name: "Stagflation / Credit Crunch"
+  probability: 0.25
   macro:
-    gdp_growth_pct: -0.5
-    revenue_growth_pct: -1.0
-    cpi_pct: 2.0
-    fed_funds_pct: 3.50          # Fed cuts aggressively
-    ten_year_yield_pct: 3.40
-    margin_trajectory: "collapsing"
-    market_multiple_path: "compressing"   # multiple compress in bear — enforced in ValuationAgent
-    earnings_growth_pct: -15.0
-    credit_spread_direction: "spiking"
-    oil_direction: "falling"
-    pmi_direction: "contraction_deep"     # ISM NO well below 50
+    gdp_growth_pct: 0.5
+    revenue_growth_pct: 2.5
+    cpi_pct: 4.2                 # inflation re-accelerates; Fed forced to hold
+    fed_funds_pct: 5.50          # hike instead of cutting
+    ten_year_yield_pct: 5.20
+    margin_trajectory: "compressed"
+    market_multiple_path: "compressing"
+    earnings_growth_pct: -5.0
+    credit_spread_direction: "widening"
+    oil_direction: "rising"
+    pmi_direction: "contracting"

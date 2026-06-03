@@ -90,11 +90,29 @@ def fetch_fundamentals(ticker: str) -> dict[str, Any]:
         return cache.get(ticker, _empty_fundamentals(ticker))
 
 
+# yfinance uses different sector names than GICS — normalize to GICS for consistency
+_YFINANCE_SECTOR_MAP: dict[str, str] = {
+    "Financial Services": "Financials",
+    "Healthcare":         "Health Care",
+    "Consumer Cyclical":  "Consumer Discretionary",
+    "Consumer Defensive": "Consumer Staples",
+    "Basic Materials":    "Materials",
+    "Real Estate":        "Real Estate",
+    "Communication Services": "Communication Services",
+    "Technology":         "Technology",
+    "Energy":             "Energy",
+    "Industrials":        "Industrials",
+    "Utilities":          "Utilities",
+}
+
+
 def _normalize_fundamentals(info: dict) -> dict[str, Any]:
+    raw_sector = info.get("sector", "")
+    sector = _YFINANCE_SECTOR_MAP.get(raw_sector, raw_sector)
     return {
         "ticker": info.get("symbol", ""),
         "name": info.get("longName", ""),
-        "sector": info.get("sector", ""),
+        "sector": sector,
         "industry": info.get("industry", ""),
         "market_cap": info.get("marketCap", 0),
         "enterprise_value": info.get("enterpriseValue", 0),
