@@ -23,6 +23,9 @@ export const api = {
   run: (demo = true) =>
     fetch(`${BASE}/run?demo=${demo}`, { method: "POST" }).then((r) => r.json()),
   runStatus: () => get<{ running: boolean; started_at: string | null; finished_at: string | null; error: string | null }>("/run/status"),
+  runBacktest: (demo = true) =>
+    fetch(`${BASE}/run/backtest?demo=${demo}`, { method: "POST" }).then((r) => r.json()),
+  backtestRunStatus: () => get<{ running: boolean; started_at: string | null; finished_at: string | null; error: string | null }>("/run/backtest/status"),
   liveMacro: () => get<{ values: Record<string, number>; source: Record<string, string>; has_fred_key: boolean; note?: string; error?: string }>("/live/macro"),
   assumptions: () => get<Record<string, unknown>>("/config/assumptions"),
   setAssumptions: (payload: Record<string, unknown>) =>

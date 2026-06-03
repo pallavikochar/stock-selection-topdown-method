@@ -165,6 +165,7 @@ async def update_economy_config(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 _run_state: dict = {"running": False, "started_at": None, "finished_at": None, "error": None}
+_backtest_state: dict = {"running": False, "started_at": None, "finished_at": None, "error": None}
 
 
 @app.get("/api/run/status")
@@ -183,6 +184,24 @@ async def trigger_run(
         return {"status": "already_running", "demo": str(demo)}
     background_tasks.add_task(_run_pipeline, demo)
     return {"status": "started", "demo": str(demo)}
+
+
+@app.get("/api/run/backtest/status")
+async def backtest_run_status() -> dict:
+    """Return whether a backtest-only run is in progress."""
+    return _backtest_state
+
+
+@app.post("/api/run/backtest")
+async def trigger_backtest(
+    background_tasks: BackgroundTasks,
+    demo: bool = True,
+) -> dict[str, str]:
+    """Trigger backtest agent only in the background."""
+    if _backtest_state["running"] or _run_state["running"]:
+        return {"status": "already_running"}
+    background_tasks.add_task(_run_backtest, demo)
+    return {"status": "started"}
 
 
 async def _run_pipeline(demo: bool) -> None:
@@ -205,6 +224,28 @@ async def _run_pipeline(demo: bool) -> None:
     finally:
         _run_state["running"] = False
         _run_state["finished_at"] = datetime.datetime.utcnow().isoformat()
+
+
+async def _run_backtest(demo: bool) -> None:
+    import sys, datetime
+    _backtest_state["running"] = True
+    _backtest_state["started_at"] = datetime.datetime.utcnow().isoformat()
+    _backtest_state["error"] = None
+    args = [sys.executable, "-m", "apm", "run", "--agent", "backtest"]
+    if demo:
+        args.append("--demo")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            cwd=str(Path(__file__).parent),
+        )
+        await proc.wait()
+        _backtest_state["error"] = None if proc.returncode == 0 else f"Exit code {proc.returncode}"
+    except Exception as exc:
+        _backtest_state["error"] = str(exc)
+    finally:
+        _backtest_state["running"] = False
+        _backtest_state["finished_at"] = datetime.datetime.utcnow().isoformat()
 
 
 def _get_run_date() -> str | None:

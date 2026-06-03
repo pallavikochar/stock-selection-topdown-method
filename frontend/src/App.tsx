@@ -20,6 +20,7 @@ type ActivePanel = "economy" | "cycle" | "scenarios" | "sector" | "style" | "scr
 export default function App() {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [runTriggered, setRunTriggered] = useState(false);
+  const [backtestTriggered, setBacktestTriggered] = useState(false);
   const qc = useQueryClient();
 
   const { data: runStatus } = useQuery({
@@ -28,9 +29,17 @@ export default function App() {
     refetchInterval: runTriggered ? 2000 : false,
   });
 
+  const { data: backtestRunStatus } = useQuery({
+    queryKey: ["backtestRunStatus"],
+    queryFn: api.backtestRunStatus,
+    refetchInterval: backtestTriggered ? 2000 : false,
+  });
+
   const isRunning = runStatus?.running ?? false;
+  const isBacktestRunning = backtestRunStatus?.running ?? false;
 
   const [justFinished, setJustFinished] = useState(false);
+  const [backtestJustFinished, setBacktestJustFinished] = useState(false);
 
   useEffect(() => {
     if (runTriggered && !isRunning && runStatus?.finished_at) {
@@ -40,6 +49,15 @@ export default function App() {
       setTimeout(() => setJustFinished(false), 5000);
     }
   }, [isRunning, runTriggered, runStatus?.finished_at, qc]);
+
+  useEffect(() => {
+    if (backtestTriggered && !isBacktestRunning && backtestRunStatus?.finished_at) {
+      setBacktestTriggered(false);
+      qc.invalidateQueries({ queryKey: ["backtest"] });
+      setBacktestJustFinished(true);
+      setTimeout(() => setBacktestJustFinished(false), 5000);
+    }
+  }, [isBacktestRunning, backtestTriggered, backtestRunStatus?.finished_at, qc]);
 
   const { data: funnel, isLoading: funnelLoading } = useQuery({
     queryKey: ["funnel"],
@@ -106,6 +124,12 @@ export default function App() {
     if (isRunning) return;
     setRunTriggered(true);
     await api.run(true);
+  };
+
+  const handleRerunBacktest = async () => {
+    if (isBacktestRunning || isRunning) return;
+    setBacktestTriggered(true);
+    await api.runBacktest(true);
   };
 
   const economy     = economyRaw?.data as EconomyData | undefined;
@@ -293,10 +317,33 @@ export default function App() {
                     <h3 className="text-sm font-600 text-navy-500 uppercase tracking-widest">10-Year Sector Rotation Backtest</h3>
                     <p className="text-xs text-navy-600 mt-0.5">{backtestData.strategy_name}</p>
                   </div>
-                  <div className="flex gap-4 text-xs font-mono">
-                    <span className="text-green-signal font-600">{backtestData.metrics.cagr_pct.toFixed(1)}% CAGR</span>
-                    <span className="text-navy-500">/</span>
-                    <span className="text-cyan-accent font-600">+{backtestData.metrics.alpha_pct.toFixed(1)}% α</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex gap-4 text-xs font-mono">
+                      <span className="text-green-signal font-600">{backtestData.metrics.cagr_pct.toFixed(1)}% CAGR</span>
+                      <span className="text-navy-500">/</span>
+                      <span className="text-cyan-accent font-600">+{backtestData.metrics.alpha_pct.toFixed(1)}% α</span>
+                    </div>
+                    {backtestJustFinished && (
+                      <span className="text-[10px] text-green-signal border border-green-signal/30 bg-green-signal/10 px-2 py-1 rounded">
+                        ✓ Updated
+                      </span>
+                    )}
+                    <button
+                      onClick={handleRerunBacktest}
+                      disabled={isBacktestRunning || isRunning}
+                      className={`text-xs px-3 py-1.5 rounded border font-600 transition-colors flex items-center gap-1.5 ${
+                        isBacktestRunning
+                          ? "border-amber-accent/30 bg-amber-accent/10 text-amber-accent cursor-not-allowed"
+                          : "border-cyan-accent/30 text-cyan-accent hover:bg-cyan-accent/10"
+                      }`}
+                    >
+                      {isBacktestRunning ? (
+                        <>
+                          <span className="w-2.5 h-2.5 border border-amber-accent/40 border-t-amber-accent rounded-full animate-spin" />
+                          Running…
+                        </>
+                      ) : "↺ Rerun Backtest"}
+                    </button>
                   </div>
                 </div>
                 <BacktestResults data={backtestData} />
