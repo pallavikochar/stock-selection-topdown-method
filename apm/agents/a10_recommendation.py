@@ -12,7 +12,7 @@ from apm.core.agent import (
     Agent, AgentOutput, ConfidenceBreakdown, Context, RecommendationsData, StockRecommendation,
 )
 from apm.core.types import Action, ConfidenceLabel, CorrelationRegime
-from apm.utils.config import get_holdings, get_weights
+from apm.utils.config import get_holdings, get_valuation_defaults, get_weights
 
 log = logging.getLogger(__name__)
 
@@ -178,15 +178,18 @@ class RecommendationAgent(Agent):
     def _determine_action(
         self, ticker: str, val, confidence: float, current_holdings: set
     ) -> Action:
+        d = get_valuation_defaults()
         if ticker in current_holdings:
-            # Sell if thesis has deteriorated; hold otherwise
-            if confidence < 48 or val.expected_return_pct < 3 or val.reward_to_risk < 1.0:
+            if (confidence < d["sell_confidence_max"]
+                    or val.expected_return_pct < d["sell_return_max_pct"]
+                    or val.reward_to_risk < d["hold_rr_min"]):
                 return Action.SELL
             return Action.HOLD
-        # Non-holdings: Buy if high conviction, Sell if strong negative signal, Hold otherwise
-        if confidence >= 63 and val.expected_return_pct > 8 and val.reward_to_risk > 1.5:
+        if (confidence >= d["buy_confidence_min"]
+                and val.expected_return_pct > d["buy_return_min_pct"]
+                and val.reward_to_risk > d["buy_rr_min"]):
             return Action.BUY
-        if confidence < 38 or val.expected_return_pct < -5:
+        if confidence < d["sell_confidence_max"] - 10 or val.expected_return_pct < -5:
             return Action.SELL
         return Action.HOLD
 

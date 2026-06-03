@@ -13,17 +13,19 @@ from typing import Any
 from apm.core.agent import Agent, AgentOutput, Context, ScenarioValuation, ValuationData
 from apm.core.types import LifeCycleStage
 from apm.data.fetchers import fetch_fundamentals
-from apm.utils.config import get_universe
+from apm.utils.config import get_universe, get_valuation_defaults
 
 log = logging.getLogger(__name__)
 
-# Perpetuity growth rate bounds by life-cycle stage
-TERMINAL_G_BY_STAGE: dict[str, float] = {
-    "Startup": 0.03,
-    "Growth": 0.025,
-    "Mature": 0.02,
-    "Decline": 0.01,
-}
+# Perpetuity growth rate bounds — read from valuation_defaults.json, fallback to hardcoded
+def _terminal_g_map() -> dict[str, float]:
+    d = get_valuation_defaults()
+    return {
+        "Startup": d["terminal_g_startup"] / 100,
+        "Growth":  d["terminal_g_growth"]  / 100,
+        "Mature":  d["terminal_g_mature"]  / 100,
+        "Decline": d["terminal_g_decline"] / 100,
+    }
 
 # Sector-specific WACC premia over risk-free rate (rough estimates)
 SECTOR_WACC_PREMIUM: dict[str, float] = {
@@ -44,6 +46,7 @@ class ValuationAgent(Agent):
         if scenarios is None or fundamentals is None:
             raise RuntimeError("ValuationAgent requires Scenario + Fundamental agents first")
 
+        self._defaults = get_valuation_defaults()
         risk_free = (economy.yield_curve_bps / 10000 + 0.0465) if economy else 0.0465
         universe = get_universe()
         demo_tickers = universe.get("demo_deep_dive_tickers", [])
@@ -97,7 +100,7 @@ class ValuationAgent(Agent):
         sector = raw_fund.get("sector", "Technology")
         life_cycle = fund_data.industry_life_cycle.value
         wacc_premium = SECTOR_WACC_PREMIUM.get(sector.replace(" ", "_"), 0.030)
-        terminal_g_max = TERMINAL_G_BY_STAGE.get(life_cycle, 0.02)
+        terminal_g_max = _terminal_g_map().get(life_cycle, self._defaults["terminal_g_mature"] / 100)
 
         scenario_vals: list[ScenarioValuation] = []
         warnings: list[str] = []
@@ -124,7 +127,7 @@ class ValuationAgent(Agent):
             # Step 3: FCFF = NOPAT - Reinvestment
             revenue = raw_fund.get("revenue_ttm", 0) or 1e9
             ebit = revenue * margin
-            tax_rate = 0.21
+            tax_rate = self._defaults["tax_rate_pct"] / 100
             nopat = ebit * (1 - tax_rate)
             # Sales-to-capital ratio ≈ revenue / (market_cap + debt - cash)
             market_cap = raw_fund.get("market_cap", 0) or 1e10
@@ -137,7 +140,7 @@ class ValuationAgent(Agent):
 
             # Step 4: WACC
             beta = raw_fund.get("beta", 1.0) or 1.0
-            equity_premium = 0.055
+            equity_premium = self._defaults["equity_risk_premium"] / 100
             cost_of_equity = risk_free + beta * equity_premium
             cost_of_debt_after_tax = (risk_free + wacc_premium) * (1 - tax_rate)
             total_cap = market_cap + debt
@@ -159,9 +162,9 @@ class ValuationAgent(Agent):
             # Bear case: also compress the multiple (per course requirement)
             multiple_adj = 1.0
             if macro.market_multiple_path == "compressing":
-                multiple_adj = 0.80
+                multiple_adj = self._defaults["bear_multiple_adj"]
             elif macro.market_multiple_path == "expanding":
-                multiple_adj = 1.15
+                multiple_adj = self._defaults["bull_multiple_adj"]
 
             if wacc <= terminal_g:
                 tv = fcff * 15  # fallback
@@ -181,7 +184,9 @@ class ValuationAgent(Agent):
             fwd_eps = eps * (1 + macro.earnings_growth_pct / 100)
             multiples_per_share = max(1.0, steady_state_pe * fwd_eps * multiple_adj)
 
-            blended = (dcf_per_share * 0.60 + multiples_per_share * 0.40)
+            dcf_w = self._defaults["dcf_weight"]
+            mult_w = self._defaults["multiples_weight"]
+            blended = (dcf_per_share * dcf_w + multiples_per_share * mult_w)
             upside_pct = (blended - current_price) / current_price * 100 if current_price else 0
 
             scenario_vals.append(ScenarioValuation(

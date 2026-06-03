@@ -16,6 +16,20 @@ from fastapi.staticfiles import StaticFiles
 
 OUTPUT_DIR = Path("output/agents")
 FRONTEND_DIST = Path("frontend/dist")
+CONFIG_DIR = Path("config")
+
+# Load .env if present (safe no-op if python-dotenv not installed)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    import os
+    _env = Path(".env")
+    if _env.exists():
+        for line in _env.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip())
 
 app = FastAPI(
     title="Project APM",
@@ -150,22 +164,47 @@ async def update_economy_config(payload: dict[str, Any]) -> dict[str, Any]:
     return {"status": "ok", "updated": updated}
 
 
+_run_state: dict = {"running": False, "started_at": None, "finished_at": None, "error": None}
+
+
+@app.get("/api/run/status")
+async def run_status() -> dict:
+    """Return whether a pipeline run is in progress."""
+    return _run_state
+
+
 @app.post("/api/run")
 async def trigger_run(
     background_tasks: BackgroundTasks,
     demo: bool = True,
 ) -> dict[str, str]:
     """Trigger a full pipeline run in the background."""
+    if _run_state["running"]:
+        return {"status": "already_running", "demo": str(demo)}
     background_tasks.add_task(_run_pipeline, demo)
     return {"status": "started", "demo": str(demo)}
 
 
 async def _run_pipeline(demo: bool) -> None:
-    import subprocess, sys
+    import sys, datetime
+    _run_state["running"] = True
+    _run_state["started_at"] = datetime.datetime.utcnow().isoformat()
+    _run_state["error"] = None
     args = [sys.executable, "-m", "apm", "run"]
     if demo:
         args.append("--demo")
-    await asyncio.create_subprocess_exec(*args)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            cwd=str(Path(__file__).parent),
+        )
+        await proc.wait()
+        _run_state["error"] = None if proc.returncode == 0 else f"Exit code {proc.returncode}"
+    except Exception as exc:
+        _run_state["error"] = str(exc)
+    finally:
+        _run_state["running"] = False
+        _run_state["finished_at"] = datetime.datetime.utcnow().isoformat()
 
 
 def _get_run_date() -> str | None:
@@ -174,6 +213,176 @@ def _get_run_date() -> str | None:
         raw = json.loads(path.read_text())
         return raw.get("as_of_date")
     return None
+
+
+# ── Live macro fetch (FRED + yfinance) ────────────────────────────────────────
+
+FRED_SERIES: dict[str, tuple[str, str, float]] = {
+    # (series_id, snapshot_key, unit_factor)
+    "fed_funds":      ("DFF",        "fed_funds_pct",           1.0),
+    "ten_year_yield": ("DGS10",      "ten_year_yield_pct",      1.0),
+    "yield_curve":    ("T10Y2Y",     "yield_curve_2s10s_bps",  100.0),  # % → bps
+    "baa_spread":     ("BAMLC0A0CM", "baa_credit_spread_pct",   1.0),
+    "vix":            ("VIXCLS",     "vix",                     1.0),
+    "wti_crude":      ("DCOILWTICO", "wti_crude_usd",           1.0),
+    "dxy":            ("DTWEXBGS",   "dxy",                     1.0),
+    "initial_claims": ("ICSA",       "initial_claims_k",        0.001),  # units → thousands
+    "nahb":           ("HOUST",      "nahb_index",              0.001),  # housing starts (k units proxy)
+}
+
+
+@app.get("/api/live/macro")
+async def get_live_macro() -> dict[str, Any]:
+    """
+    Pull latest macro readings from FRED + compute CPI YoY from CPIAUCSL.
+    Returns partial data if FRED_API_KEY not set — yfinance-based fields still work.
+    """
+    import os
+    import datetime
+    fred_key = os.getenv("FRED_API_KEY", "")
+    result: dict[str, Any] = {"source": {}, "values": {}, "has_fred_key": bool(fred_key)}
+
+    if fred_key:
+        import httpx
+
+        async def _fred_series(series_id: str) -> list[float]:
+            url = "https://api.stlouisfed.org/fred/series/observations"
+            params = {
+                "series_id": series_id,
+                "api_key": fred_key,
+                "file_type": "json",
+                "limit": 24,
+                "sort_order": "desc",
+            }
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, params=params)
+                r.raise_for_status()
+                obs = r.json().get("observations", [])
+                return [float(o["value"]) for o in obs if o["value"] != "."]
+
+        for field, (series_id, snap_key, factor) in FRED_SERIES.items():
+            try:
+                vals = await _fred_series(series_id)
+                if vals:
+                    result["values"][field] = round(vals[0] * factor, 3)
+                    result["source"][field] = f"FRED:{series_id}"
+                else:
+                    result["source"][field] = f"FRED:{series_id} (no data)"
+            except Exception as exc:
+                result["source"][field] = f"error:{exc}"
+            await asyncio.sleep(0.15)  # FRED rate limit: 120 req/min
+
+        # CPI YoY — compute from monthly level series
+        try:
+            url = "https://api.stlouisfed.org/fred/series/observations"
+            params = {"series_id": "CPIAUCSL", "api_key": fred_key, "file_type": "json", "limit": 15, "sort_order": "desc"}
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, params=params)
+                r.raise_for_status()
+                obs = [float(o["value"]) for o in r.json().get("observations", []) if o["value"] != "."]
+                if len(obs) >= 13:
+                    yoy = (obs[0] / obs[12] - 1) * 100
+                    result["values"]["cpi"] = round(yoy, 2)
+                    result["source"]["cpi"] = "FRED:CPIAUCSL (YoY computed)"
+        except Exception as exc:
+            result["source"]["cpi"] = f"error:{exc}"
+
+        result["source"]["pmi"] = "manual — ISM PMI not on FRED (proprietary)"
+        result["source"]["ism_new_orders"] = "manual — ISM New Orders not on FRED"
+    else:
+        result["note"] = "Set FRED_API_KEY env var for live macro. Get a free key at fred.stlouisfed.org"
+
+    return result
+
+
+# ── Assumptions config endpoints ──────────────────────────────────────────────
+
+@app.get("/api/config/assumptions")
+async def get_assumptions() -> dict[str, Any]:
+    """Return all tunable assumption config files."""
+    import yaml
+    out: dict[str, Any] = {}
+    for name in ["scenarios", "weights"]:
+        p = CONFIG_DIR / f"{name}.yaml"
+        if p.exists():
+            out[name] = yaml.safe_load(p.read_text()) or {}
+    # Also return valuation defaults from the module
+    out["valuation"] = _valuation_defaults()
+    return out
+
+
+@app.post("/api/config/assumptions")
+async def update_assumptions(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Partially update assumption configs. Accepts keys: 'scenarios', 'weights', 'valuation'.
+    For scenarios: update probabilities and per-scenario macro numbers.
+    For weights: update score_component weights.
+    """
+    import yaml
+    updated: list[str] = []
+
+    if "scenarios" in payload:
+        p = CONFIG_DIR / "scenarios.yaml"
+        cfg: dict = yaml.safe_load(p.read_text()) or {} if p.exists() else {}
+        _deep_merge(cfg, payload["scenarios"])
+        p.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False))
+        updated.append("scenarios")
+
+    if "weights" in payload:
+        p = CONFIG_DIR / "weights.yaml"
+        cfg = yaml.safe_load(p.read_text()) or {} if p.exists() else {}
+        # Only update numeric weights under score_components
+        for comp, val in payload["weights"].items():
+            if "score_components" in cfg and comp in cfg["score_components"]:
+                cfg["score_components"][comp]["weight"] = int(val)
+        p.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False))
+        updated.append("weights")
+
+    if "valuation" in payload:
+        _write_valuation_defaults(payload["valuation"])
+        updated.append("valuation")
+
+    return {"status": "ok", "updated": updated}
+
+
+def _valuation_defaults() -> dict[str, Any]:
+    """Read valuation defaults from a small JSON sidecar (created on first write)."""
+    p = CONFIG_DIR / "valuation_defaults.json"
+    if p.exists():
+        return json.loads(p.read_text())
+    return {
+        "terminal_g_startup": 3.0,
+        "terminal_g_growth": 2.5,
+        "terminal_g_mature": 2.0,
+        "terminal_g_decline": 1.0,
+        "equity_risk_premium": 5.5,
+        "tax_rate_pct": 21.0,
+        "dcf_weight": 0.6,
+        "multiples_weight": 0.4,
+        "bear_multiple_adj": 0.80,
+        "bull_multiple_adj": 1.15,
+        "buy_confidence_min": 63,
+        "buy_return_min_pct": 8.0,
+        "buy_rr_min": 1.5,
+        "sell_confidence_max": 48,
+        "sell_return_max_pct": 3.0,
+        "hold_rr_min": 1.0,
+    }
+
+
+def _write_valuation_defaults(data: dict) -> None:
+    p = CONFIG_DIR / "valuation_defaults.json"
+    current = json.loads(p.read_text()) if p.exists() else _valuation_defaults()
+    current.update({k: v for k, v in data.items() if k in _valuation_defaults()})
+    p.write_text(json.dumps(current, indent=2))
+
+
+def _deep_merge(base: dict, override: dict) -> None:
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
 
 
 # Serve built frontend if it exists

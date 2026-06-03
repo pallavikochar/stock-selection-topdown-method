@@ -3,6 +3,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../lib/api";
 
+const LIVE_KEY_MAP: Record<string, string> = {
+  fed_funds:      "fed_funds",
+  ten_year_yield: "ten_year_yield",
+  yield_curve:    "yield_curve",
+  baa_spread:     "baa_spread",
+  vix:            "vix",
+  wti_crude:      "wti_crude",
+  dxy:            "dxy",
+  initial_claims: "initial_claims",
+  nahb:           "nahb",
+  cpi:            "cpi",
+};
+
 type Regime = "AUTO" | "REFLATION" | "INFLATION" | "STAGFLATION" | "DEFLATION";
 
 const REGIME_META: Record<Regime, { label: string; color: string; hint: string }> = {
@@ -48,10 +61,18 @@ export function EconomyPanel() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, number>>({});
   const [draftRegime, setDraftRegime] = useState<Regime>("AUTO");
+  const [liveLoaded, setLiveLoaded] = useState(false);
 
   const { data: econConfig } = useQuery({
     queryKey: ["econConfig"],
     queryFn: api.econConfig,
+  });
+
+  const { isFetching: fetchingLive, refetch: refetchLive } = useQuery({
+    queryKey: ["liveMacro"],
+    queryFn: api.liveMacro,
+    enabled: false,
+    staleTime: 120_000,
   });
 
   const mutation = useMutation({
@@ -73,14 +94,31 @@ export function EconomyPanel() {
     }
     setDraft(initial);
     setDraftRegime((econConfig?.regime_override ?? "AUTO") as Regime);
+    setLiveLoaded(false);
     setEditing(true);
+  }
+
+  async function pullLiveData() {
+    const result = await refetchLive();
+    if (result.data?.values) {
+      const vals = result.data.values;
+      setDraft(prev => {
+        const next = { ...prev };
+        for (const f of FIELDS) {
+          const liveKey = LIVE_KEY_MAP[f.key];
+          if (liveKey && vals[liveKey] !== undefined) {
+            next[f.key] = vals[liveKey];
+          }
+        }
+        return next;
+      });
+      setLiveLoaded(true);
+    }
   }
 
   function applyAndRun() {
     const payload: Record<string, number | string> = { ...draft, regime_override: draftRegime };
-    mutation.mutate(payload, {
-      onSuccess: () => { api.run(true); setTimeout(() => window.location.reload(), 4000); },
-    });
+    mutation.mutate(payload);
   }
 
   return (
@@ -94,6 +132,23 @@ export function EconomyPanel() {
           <span className={`text-xs font-600 px-2 py-1 rounded border ${REGIME_META[currentRegime].color}`}>
             {REGIME_META[currentRegime].label}
           </span>
+          {editing && (
+            <button
+              onClick={pullLiveData}
+              disabled={fetchingLive}
+              className="text-xs px-3 py-1.5 rounded border border-green-signal/30 text-green-signal hover:bg-green-signal/10 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              title="Pull live readings from FRED (Fed Funds, 10yr yield, CPI, VIX, etc.)"
+            >
+              {fetchingLive ? (
+                <><span className="w-2.5 h-2.5 border border-green-signal/40 border-t-green-signal rounded-full animate-spin" />Fetching…</>
+              ) : "↓ Pull Live Data (FRED)"}
+            </button>
+          )}
+          {liveLoaded && editing && (
+            <span className="text-[10px] text-green-signal border border-green-signal/30 bg-green-signal/10 px-1.5 py-0.5 rounded">
+              FRED data loaded
+            </span>
+          )}
           {!editing && (
             <button
               onClick={startEdit}

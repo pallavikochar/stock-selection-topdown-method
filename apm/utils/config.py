@@ -64,6 +64,28 @@ def get_weights() -> dict[str, Any]:
     return load_yaml("weights.yaml")
 
 
+def get_valuation_defaults() -> dict[str, Any]:
+    """Return valuation defaults from JSON sidecar; falls back to hardcoded values."""
+    import json
+    p = CONFIG_DIR / "valuation_defaults.json"
+    base = {
+        "terminal_g_startup": 3.0, "terminal_g_growth": 2.5,
+        "terminal_g_mature": 2.0, "terminal_g_decline": 1.0,
+        "equity_risk_premium": 5.5, "tax_rate_pct": 21.0,
+        "dcf_weight": 0.6, "multiples_weight": 0.4,
+        "bear_multiple_adj": 0.80, "bull_multiple_adj": 1.15,
+        "buy_confidence_min": 63, "buy_return_min_pct": 8.0, "buy_rr_min": 1.5,
+        "sell_confidence_max": 48, "sell_return_max_pct": 3.0, "hold_rr_min": 1.0,
+    }
+    if p.exists():
+        try:
+            saved = json.loads(p.read_text())
+            base.update(saved)
+        except Exception:
+            pass
+    return base
+
+
 def get_industry_macro_beneficiaries() -> dict[str, Any]:
     return load_yaml("industry_macro_beneficiaries.yaml")
 
