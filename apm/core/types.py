@@ -48,8 +48,7 @@ class InflationLevel(str, Enum):
 class Action(str, Enum):
     BUY = "Buy"
     HOLD = "Hold"
-    REPLACE = "Replace"
-    AVOID = "Avoid"
+    SELL = "Sell"
 
 
 class ConfidenceLabel(str, Enum):

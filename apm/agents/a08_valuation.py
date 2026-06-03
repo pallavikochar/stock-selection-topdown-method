@@ -13,17 +13,19 @@ from typing import Any
 from apm.core.agent import Agent, AgentOutput, Context, ScenarioValuation, ValuationData
 from apm.core.types import LifeCycleStage
 from apm.data.fetchers import fetch_fundamentals
-from apm.utils.config import get_universe
+from apm.utils.config import get_universe, get_valuation_defaults
 
 log = logging.getLogger(__name__)
 
-# Perpetuity growth rate bounds by life-cycle stage
-TERMINAL_G_BY_STAGE: dict[str, float] = {
-    "Startup": 0.03,
-    "Growth": 0.025,
-    "Mature": 0.02,
-    "Decline": 0.01,
-}
+# Perpetuity growth rate bounds — read from valuation_defaults.json, fallback to hardcoded
+def _terminal_g_map() -> dict[str, float]:
+    d = get_valuation_defaults()
+    return {
+        "Startup": d["terminal_g_startup"] / 100,
+        "Growth":  d["terminal_g_growth"]  / 100,
+        "Mature":  d["terminal_g_mature"]  / 100,
+        "Decline": d["terminal_g_decline"] / 100,
+    }
 
 # Sector-specific WACC premia over risk-free rate (rough estimates)
 SECTOR_WACC_PREMIUM: dict[str, float] = {
@@ -31,6 +33,24 @@ SECTOR_WACC_PREMIUM: dict[str, float] = {
     "Industrials": 0.030, "Technology": 0.030, "Health_Care": 0.025,
     "Consumer_Discretionary": 0.030, "Consumer_Staples": 0.020,
     "Communication_Services": 0.035, "Utilities": 0.020, "Real_Estate": 0.030,
+}
+
+# Sector-specific Sales/Capital ratios (book-value basis, not EV) for reinvestment calc.
+# Asset-light sectors (tech, comms) have high S/C; capital-heavy (utilities, energy) have low.
+SECTOR_SALES_TO_CAPITAL: dict[str, float] = {
+    "Technology": 0.90, "Health_Care": 0.60, "Communication_Services": 0.65,
+    "Consumer_Discretionary": 0.80, "Consumer_Staples": 1.10,
+    "Financials": 0.20, "Industrials": 0.60, "Materials": 0.55,
+    "Energy": 0.40, "Utilities": 0.25, "Real_Estate": 0.20,
+}
+
+# Sector-median forward P/E for the multiples leg (mid-cycle, base case).
+# Adjusted up/down per scenario via multiple_adj in the valuation loop.
+SECTOR_FORWARD_PE: dict[str, float] = {
+    "Technology": 30.0, "Health_Care": 22.0, "Communication_Services": 21.0,
+    "Consumer_Discretionary": 23.0, "Consumer_Staples": 20.0,
+    "Financials": 14.0, "Industrials": 21.0, "Materials": 17.0,
+    "Energy": 13.0, "Utilities": 18.0, "Real_Estate": 25.0,
 }
 
 
@@ -44,6 +64,7 @@ class ValuationAgent(Agent):
         if scenarios is None or fundamentals is None:
             raise RuntimeError("ValuationAgent requires Scenario + Fundamental agents first")
 
+        self._defaults = get_valuation_defaults()
         risk_free = (economy.yield_curve_bps / 10000 + 0.0465) if economy else 0.0465
         universe = get_universe()
         demo_tickers = universe.get("demo_deep_dive_tickers", [])
@@ -97,7 +118,7 @@ class ValuationAgent(Agent):
         sector = raw_fund.get("sector", "Technology")
         life_cycle = fund_data.industry_life_cycle.value
         wacc_premium = SECTOR_WACC_PREMIUM.get(sector.replace(" ", "_"), 0.030)
-        terminal_g_max = TERMINAL_G_BY_STAGE.get(life_cycle, 0.02)
+        terminal_g_max = _terminal_g_map().get(life_cycle, self._defaults["terminal_g_mature"] / 100)
 
         scenario_vals: list[ScenarioValuation] = []
         warnings: list[str] = []
@@ -124,20 +145,25 @@ class ValuationAgent(Agent):
             # Step 3: FCFF = NOPAT - Reinvestment
             revenue = raw_fund.get("revenue_ttm", 0) or 1e9
             ebit = revenue * margin
-            tax_rate = 0.21
+            tax_rate = self._defaults["tax_rate_pct"] / 100
             nopat = ebit * (1 - tax_rate)
-            # Sales-to-capital ratio ≈ revenue / (market_cap + debt - cash)
             market_cap = raw_fund.get("market_cap", 0) or 1e10
             debt = raw_fund.get("total_debt", 0) or 0
             cash = raw_fund.get("cash", 0) or 0
-            invested_capital = max(market_cap + debt - cash, 1e6)
-            sales_to_capital = revenue / invested_capital
-            reinvestment = (revenue * rev_growth) / max(sales_to_capital, 0.1)
+            # Use sector-specific book S/C ratio — avoids inflating reinvestment via EV
+            sector_key = sector.replace(" ", "_")
+            sales_to_capital = SECTOR_SALES_TO_CAPITAL.get(sector_key, 0.60)
+            # Reinvestment = ΔRevenue / S/C (capital needed to support growth)
+            # Cap at 60% of NOPAT so FCFF cannot go deeply negative in base scenario
+            reinvestment = min(
+                (revenue * abs(rev_growth)) / max(sales_to_capital, 0.1),
+                nopat * 0.60,
+            )
             fcff = nopat - reinvestment
 
             # Step 4: WACC
             beta = raw_fund.get("beta", 1.0) or 1.0
-            equity_premium = 0.055
+            equity_premium = self._defaults["equity_risk_premium"] / 100
             cost_of_equity = risk_free + beta * equity_premium
             cost_of_debt_after_tax = (risk_free + wacc_premium) * (1 - tax_rate)
             total_cap = market_cap + debt
@@ -159,9 +185,9 @@ class ValuationAgent(Agent):
             # Bear case: also compress the multiple (per course requirement)
             multiple_adj = 1.0
             if macro.market_multiple_path == "compressing":
-                multiple_adj = 0.80
+                multiple_adj = self._defaults["bear_multiple_adj"]
             elif macro.market_multiple_path == "expanding":
-                multiple_adj = 1.15
+                multiple_adj = self._defaults["bull_multiple_adj"]
 
             if wacc <= terminal_g:
                 tv = fcff * 15  # fallback
@@ -175,13 +201,20 @@ class ValuationAgent(Agent):
             shares = raw_fund.get("shares_outstanding", 0) or 1e9
             dcf_per_share = max(1.0, dcf_value_equity / shares) if shares else 1.0
 
-            # Multiples: steady-state P/E ≈ 1/CoE
-            steady_state_pe = 1 / cost_of_equity if cost_of_equity > 0 else 15
+            # Multiples: sector-median forward P/E (captures growth premium the market pays)
+            # Adjust for: (a) interest rates, (b) company life-cycle quality premium
+            base_pe = SECTOR_FORWARD_PE.get(sector_key, 18.0)
+            rate_adj = max(0.7, 1.0 - (risk_free - 0.04) * 15)  # ~15pt P/E sensitivity to rates
+            # Growth-stage companies deserve premium; decline-stage get discount
+            lc_adj = {"Startup": 1.30, "Growth": 1.20, "Mature": 1.0, "Decline": 0.85}.get(life_cycle, 1.0)
+            sector_pe = base_pe * rate_adj * multiple_adj * lc_adj
             eps = raw_fund.get("net_income_ttm", 0) / shares if shares else 0
             fwd_eps = eps * (1 + macro.earnings_growth_pct / 100)
-            multiples_per_share = max(1.0, steady_state_pe * fwd_eps * multiple_adj)
+            multiples_per_share = max(1.0, sector_pe * fwd_eps) if fwd_eps > 0 else 1.0
 
-            blended = (dcf_per_share * 0.60 + multiples_per_share * 0.40)
+            dcf_w = self._defaults["dcf_weight"]
+            mult_w = self._defaults["multiples_weight"]
+            blended = (dcf_per_share * dcf_w + multiples_per_share * mult_w)
             upside_pct = (blended - current_price) / current_price * 100 if current_price else 0
 
             scenario_vals.append(ScenarioValuation(
