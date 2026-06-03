@@ -31,6 +31,7 @@ SECTOR_MAP = {
 DEMO_TICKERS = [
     "XOM", "CVX", "FCX", "JPM", "ABBV", "MPC", "MSFT", "KO",
     "NVDA", "LLY", "AAPL", "META", "NEE", "CAT", "AMZN",
+    "GOOGL", "V", "UNH", "GS", "LIN", "TSLA", "BLK", "PG", "HON", "MPC",
 ]
 
 
@@ -49,7 +50,8 @@ def fetch_sp500() -> pd.DataFrame:
 
 
 def build_universe(df: pd.DataFrame) -> dict:
-    sectors: dict[str, list] = {v: [] for v in SECTOR_MAP.values()}
+    # Match existing universe.yaml structure: sectors.<Name>.tickers: [...]
+    sectors: dict[str, dict] = {v: {"tickers": []} for v in SECTOR_MAP.values()}
 
     for _, row in df.iterrows():
         raw_sector = row.get("GICS Sector", "")
@@ -59,10 +61,10 @@ def build_universe(df: pd.DataFrame) -> dict:
             continue
         ticker = row["Symbol"].strip()
         name = row["Security"].strip()
-        sectors[sector].append({"ticker": ticker, "name": name, "market_cap": "large"})
+        sectors[sector]["tickers"].append({"ticker": ticker, "name": name, "market_cap": "large"})
 
     # Remove empty sectors (shouldn't happen but safety)
-    sectors = {k: v for k, v in sectors.items() if v}
+    sectors = {k: v for k, v in sectors.items() if v["tickers"]}
     return {
         "sectors": sectors,
         "demo_deep_dive_tickers": DEMO_TICKERS,
@@ -80,10 +82,10 @@ def main() -> None:
     print(f"  {len(df)} tickers found")
     universe = build_universe(df)
 
-    total = sum(len(v) for v in universe["sectors"].values())
+    total = sum(len(v["tickers"]) for v in universe["sectors"].values())
     print(f"  {total} tickers across {len(universe['sectors'])} sectors")
-    for sec, tickers in universe["sectors"].items():
-        print(f"    {sec}: {len(tickers)}")
+    for sec, data in universe["sectors"].items():
+        print(f"    {sec}: {len(data['tickers'])}")
 
     out = Path(__file__).parent.parent / "config" / "universe.yaml"
     header = (
