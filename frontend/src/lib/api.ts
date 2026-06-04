@@ -1,4 +1,4 @@
-import type { AgentOutput, BacktestData, FunnelSummary, LLMAnalysisData, RecommendationsData } from "./types";
+import type { AgentOutput, BacktestData, FunnelSummary, LLMAnalysisData, RecommendationsData, TickerAnalysis } from "./types";
 
 const BASE = "/api";
 
@@ -30,4 +30,10 @@ export const api = {
   assumptions: () => get<Record<string, unknown>>("/config/assumptions"),
   setAssumptions: (payload: Record<string, unknown>) =>
     fetch(`${BASE}/config/assumptions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then(r => r.json()),
+  portfolioPrices: (tickers: string[]) =>
+    get<{ prices: Record<string, { current_price: number; name: string }> }>(`/portfolio/prices?tickers=${tickers.join(",")}`),
+  runTicker: (ticker: string) =>
+    fetch(`${BASE}/run/ticker?ticker=${encodeURIComponent(ticker)}`, { method: "POST" }).then(r => r.json()),
+  tickerRunStatus: () => get<{ running: boolean; ticker: string | null; finished_at: string | null; error: string | null }>("/run/ticker/status"),
+  getTicker: (ticker: string) => get<TickerAnalysis>(`/ticker/${encodeURIComponent(ticker)}`),
 };

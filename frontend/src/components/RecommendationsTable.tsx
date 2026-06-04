@@ -93,10 +93,18 @@ export function RecommendationsTable({ recommendations, llmAnalysis, analystData
                 ${fmt(rec.prob_weighted_target)}
               </span>
 
-              <span className={`text-right font-mono tabular-nums text-sm self-center ${
-                rec.expected_return_pct > 0 ? "text-green-signal" : "text-red-signal"
-              }`}>
-                {rec.expected_return_pct > 0 ? "+" : ""}{fmt(rec.expected_return_pct, 1)}%
+              <span
+                className={`text-right font-mono tabular-nums text-sm self-center ${
+                  rec.action === "Sell"
+                    ? rec.expected_return_pct < 0 ? "text-green-signal" : "text-red-signal"
+                    : rec.expected_return_pct > 0 ? "text-green-signal" : "text-red-signal"
+                }`}
+                title={rec.action === "Sell" ? "Short return (profit from price decline)" : "Expected return (long)"}
+              >
+                {rec.action === "Sell"
+                  ? (rec.expected_return_pct < 0 ? "+" : "") + fmt(-rec.expected_return_pct, 1) + "% short"
+                  : (rec.expected_return_pct > 0 ? "+" : "") + fmt(rec.expected_return_pct, 1) + "%"
+                }
               </span>
 
               <span className="text-right font-mono tabular-nums text-navy-400 text-sm self-center">

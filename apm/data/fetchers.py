@@ -106,6 +106,11 @@ _YFINANCE_SECTOR_MAP: dict[str, str] = {
 }
 
 
+def _norm_pct_yield(value: float) -> float:
+    """yfinance sometimes returns dividendYield as 2.91 (percent) vs 0.0291 (decimal)."""
+    return value / 100 if value > 0.30 else value
+
+
 def _normalize_fundamentals(info: dict) -> dict[str, Any]:
     raw_sector = info.get("sector", "")
     sector = _YFINANCE_SECTOR_MAP.get(raw_sector, raw_sector)
@@ -133,7 +138,7 @@ def _normalize_fundamentals(info: dict) -> dict[str, Any]:
         "roic": None,  # computed downstream
         "debt_to_equity": info.get("debtToEquity"),
         "current_price": info.get("currentPrice") or info.get("regularMarketPrice", 0),
-        "dividend_yield": info.get("dividendYield", 0),
+        "dividend_yield": _norm_pct_yield(info.get("dividendYield", 0) or 0),
         "payout_ratio": info.get("payoutRatio", 0),
         "gross_margin": info.get("grossMargins"),
         "operating_margin": info.get("operatingMargins"),
