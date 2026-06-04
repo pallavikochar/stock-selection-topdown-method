@@ -166,6 +166,7 @@ async def update_economy_config(payload: dict[str, Any]) -> dict[str, Any]:
 
 _run_state: dict = {"running": False, "started_at": None, "finished_at": None, "error": None}
 _backtest_state: dict = {"running": False, "started_at": None, "finished_at": None, "error": None}
+_ticker_state: dict = {"running": False, "ticker": None, "finished_at": None, "error": None}
 
 
 @app.get("/api/run/status")
@@ -208,6 +209,7 @@ async def _run_pipeline(demo: bool) -> None:
     import sys, datetime
     _run_state["running"] = True
     _run_state["started_at"] = datetime.datetime.utcnow().isoformat()
+    _run_state["finished_at"] = None
     _run_state["error"] = None
     args = [sys.executable, "-m", "apm", "run"]
     if demo:
@@ -226,10 +228,132 @@ async def _run_pipeline(demo: bool) -> None:
         _run_state["finished_at"] = datetime.datetime.utcnow().isoformat()
 
 
+@app.get("/api/run/ticker/status")
+async def ticker_run_status() -> dict:
+    """Return whether a per-ticker analysis is in progress."""
+    return _ticker_state
+
+
+@app.post("/api/run/ticker")
+async def trigger_ticker_analysis(
+    ticker: str,
+    background_tasks: BackgroundTasks,
+) -> dict[str, str]:
+    """Run fundamental → valuation → risk → recommendations for a single ticker."""
+    ticker = ticker.strip().upper()
+    if _ticker_state["running"]:
+        return {"status": "already_running", "ticker": _ticker_state["ticker"]}
+    if _run_state["running"]:
+        return {"status": "pipeline_running"}
+    background_tasks.add_task(_run_ticker, ticker)
+    return {"status": "started", "ticker": ticker}
+
+
+@app.get("/api/ticker/{ticker}")
+async def get_ticker_analysis(ticker: str) -> dict[str, Any]:
+    """Return the persisted single-ticker analysis."""
+    path = Path("output/ticker") / f"{ticker.upper()}.json"
+    if not path.exists():
+        raise HTTPException(404, f"No analysis found for {ticker.upper()}")
+    return json.loads(path.read_text())
+
+
+async def _run_ticker(ticker: str) -> None:
+    import datetime
+    _ticker_state.update({"running": True, "ticker": ticker, "error": None, "finished_at": None})
+
+    def _execute() -> None:
+        import sys, uuid
+        from datetime import date as _date
+        sys.path.insert(0, str(Path(__file__).parent))
+
+        from apm.agents.a07_fundamental import FundamentalAgent
+        from apm.agents.a08_valuation import ValuationAgent
+        from apm.agents.a09_risk_correlation import RiskCorrelationAgent
+        from apm.agents.a10_recommendation import RecommendationAgent
+        from apm.core.agent import AgentOutput, Context, ScreenCandidate, ScreenData
+        from apm.core.orchestrator import Orchestrator
+
+        context = Context(
+            run_id=str(uuid.uuid4())[:8],
+            demo_mode=False,
+            tickers=[ticker],
+            as_of_date=_date.today().isoformat(),
+        )
+
+        # Preload upstream cached context (economy → style) so downstream agents
+        # have macro, scenarios, and sector scores without re-running them.
+        for name in ["economy", "cycle", "scenario", "sector", "style"]:
+            cache_path = OUTPUT_DIR / f"{name}.json"
+            if cache_path.exists():
+                try:
+                    out = AgentOutput.load(name, OUTPUT_DIR)
+                    Orchestrator._apply_output_to_context(name, out, context)
+                except Exception:
+                    pass
+
+        # Synthetic screen result — makes FundamentalAgent pick up this ticker
+        context.screen = ScreenData(
+            candidates=[ScreenCandidate(
+                ticker=ticker, sector="", magic_formula_rank=1,
+                ebit_ev_rank=1, ebit_tangible_assets_rank=1, combined_rank=1,
+                peer_relative_cheapness_pct=0.0, sector_fit=True, style_fit=True,
+                above_20d_ma=True, above_200d_ma=True,
+                technical_catalyst=False, is_current_holding=False,
+                notes="Manual search",
+            )],
+            universe_size=1,
+            filtered_to=1,
+        )
+
+        stock_agents = [
+            FundamentalAgent(),
+            ValuationAgent(),
+            RiskCorrelationAgent(),
+            RecommendationAgent(),
+        ]
+        results: dict[str, Any] = {}
+        for agent in stock_agents:
+            try:
+                out = agent.run(context)
+                Orchestrator._apply_output_to_context(agent.name, out, context)
+                results[agent.name] = out.data
+            except Exception as exc:
+                results[agent.name] = {"error": str(exc)}
+
+        recs = results.get("recommendations", {})
+        ranked = recs.get("ranked", []) if isinstance(recs, dict) else []
+        rec = next((r for r in ranked if r.get("ticker") == ticker), None)
+        val_data = results.get("valuation", {})
+        fund_data = results.get("fundamental", {})
+
+        payload = {
+            "ticker": ticker,
+            "as_of_date": _date.today().isoformat(),
+            "recommendation": rec,
+            "valuation": val_data.get(ticker) if isinstance(val_data, dict) else None,
+            "fundamental": fund_data.get(ticker) if isinstance(fund_data, dict) else None,
+        }
+        ticker_dir = Path("output/ticker")
+        ticker_dir.mkdir(parents=True, exist_ok=True)
+        (ticker_dir / f"{ticker}.json").write_text(json.dumps(payload, indent=2))
+
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _execute)
+        _ticker_state["error"] = None
+    except Exception as exc:
+        _ticker_state["error"] = str(exc)
+    finally:
+        _ticker_state["running"] = False
+        _ticker_state["finished_at"] = datetime.datetime.utcnow().isoformat()
+
+
 async def _run_backtest(demo: bool) -> None:
     import sys, datetime
     _backtest_state["running"] = True
     _backtest_state["started_at"] = datetime.datetime.utcnow().isoformat()
+    _backtest_state["finished_at"] = None
     _backtest_state["error"] = None
     args = [sys.executable, "-m", "apm", "run", "--agent", "backtest"]
     if demo:
@@ -343,11 +467,10 @@ async def get_assumptions() -> dict[str, Any]:
     """Return all tunable assumption config files."""
     import yaml
     out: dict[str, Any] = {}
-    for name in ["scenarios", "weights"]:
+    for name in ["scenarios", "weights", "valuation_assumptions"]:
         p = CONFIG_DIR / f"{name}.yaml"
         if p.exists():
             out[name] = yaml.safe_load(p.read_text()) or {}
-    # Also return valuation defaults from the module
     out["valuation"] = _valuation_defaults()
     return out
 
@@ -382,6 +505,18 @@ async def update_assumptions(payload: dict[str, Any]) -> dict[str, Any]:
     if "valuation" in payload:
         _write_valuation_defaults(payload["valuation"])
         updated.append("valuation")
+
+    if "valuation_assumptions" in payload:
+        p = CONFIG_DIR / "valuation_assumptions.yaml"
+        cfg: dict = yaml.safe_load(p.read_text()) or {} if p.exists() else {}
+        _deep_merge(cfg, payload["valuation_assumptions"])
+        p.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False))
+        updated.append("valuation_assumptions")
+
+    if updated:
+        # Clear YAML cache so next agent run sees the new values
+        from apm.utils.config import load_yaml
+        load_yaml.cache_clear()
 
     return {"status": "ok", "updated": updated}
 
@@ -424,6 +559,34 @@ def _deep_merge(base: dict, override: dict) -> None:
             _deep_merge(base[k], v)
         else:
             base[k] = v
+
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/portfolio/prices")
+async def get_portfolio_prices(tickers: str = "") -> dict[str, Any]:
+    """Fetch current price for a comma-separated list of tickers via yfinance."""
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not ticker_list:
+        return {"prices": {}}
+
+    def _fetch() -> dict[str, Any]:
+        import yfinance as yf
+        prices: dict[str, Any] = {}
+        for t in ticker_list:
+            try:
+                fi = yf.Ticker(t).fast_info
+                prices[t] = {
+                    "current_price": round(float(fi.last_price or 0), 2),
+                    "name": t,
+                }
+            except Exception:
+                prices[t] = {"current_price": 0, "name": t}
+        return prices
+
+    loop = asyncio.get_event_loop()
+    prices = await loop.run_in_executor(None, _fetch)
+    return {"prices": prices}
 
 
 # Serve built frontend if it exists

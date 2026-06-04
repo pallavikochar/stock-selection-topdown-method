@@ -13,6 +13,7 @@ from apm.core.agent import Agent, AgentOutput, Context, FundamentalData, PorterF
 from apm.core.types import LifeCycleStage
 from apm.data.fetchers import fetch_fundamentals
 from apm.utils.config import get_universe
+from apm.utils.sector_ratios import sector_quality_score
 
 log = logging.getLogger(__name__)
 
@@ -346,22 +347,16 @@ class FundamentalAgent(Agent):
             overall_score=round(max(0, min(10, porter_score)), 1),
         )
 
-        roe = fund.get("roe", 0) or 0
-        roic = fund.get("roic", 0) or 0
-        revenue_growth = fund.get("revenue_growth_yoy", 0) or 0
-        quality_score = (
-            min(100, (roe * 200) +                          # ROE contribution
-                (roic * 150) +                              # ROIC contribution
-                (revenue_growth * 100) +                   # growth contribution
-                (porter.overall_score / 10 * 30)          # Porter contribution
-            )
-        )
-
         life_cycle_raw = profile.get("life_cycle", "Mature")
         try:
             life_cycle = LifeCycleStage(life_cycle_raw)
         except ValueError:
             life_cycle = LifeCycleStage.MATURE
+
+        sector = fund.get("sector", "")
+        ratio_score = sector_quality_score(fund, sector, life_cycle_raw)
+        # 70% from sector-specific ratios, 30% from Porter (preserves qualitative weight)
+        quality_score = min(100.0, ratio_score * 0.70 + porter.overall_score / 10 * 30)
 
         return FundamentalData(
             ticker=ticker,

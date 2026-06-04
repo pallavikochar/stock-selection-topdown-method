@@ -1,19 +1,35 @@
-# Project APM — Multi-Agent Top-Down Quantamental Engine
+# Project APM — Multi-Agent Top-Down Engine
 
 > *"From the economy down to the stock — macro explains ~70% of a stock's move."*
-> — Piper Sandler Field Guide to Macro & Markets / FIN 419/589 Applied Portfolio Management, UIUC
+> — Piper Sandler Field Guide to Macro & Markets / FIN 419/589 Active Portfolio Management, UIUC
+>
+> **Pallavi Kochar · University of Illinois Urbana-Champaign**
 
 ---
 
 ## What This Is
 
-Project APM is a Python multi-agent system that runs an explicitly **top-down** investment process:
+Project DOIT is a Python multi-agent system that runs an explicitly **top-down** investment process:
 
 ```
 Economy → Cycle/H.O.P.E. → Scenarios → Sector → Style/Factor → Screen → Fundamental → Valuation → Risk → Recommendation → Report
+                                                                                                                           ↓
+                                                                                           Backtest · LLM Analysis · Analyst · SEC Filings
 ```
 
-Each layer is a separate **agent** that does one job, writes a structured JSON output, and hands off to the next. A React frontend renders the entire funnel visually, making the top-down direction unmistakable.
+Each layer is a separate **agent** that does one job, writes a structured JSON output, and hands off to the next. A React frontend renders the entire funnel visually with three navigation tabs: **Top Down Analysis**, **My Portfolio**, and **Profile**.
+
+---
+
+## Screenshots
+
+### Top Down Analysis — Final Recommendations
+![Recommendations dashboard showing ranked Buy/Hold/Sell signals with targets, expected return, R:R and confidence score](docs/screenshots/01_top_down.png)
+
+### Full Pipeline View
+![Full top-down funnel: recommendations → assumptions panel → 10-year backtest metrics](docs/screenshots/02_full_funnel.png)
+
+> **Add your own:** To capture other views (My Portfolio, Ticker Search, Profile), run the app at `http://localhost:5173` and use your OS screenshot tool. Drop images into `docs/screenshots/` and reference them here.
 
 ---
 
@@ -32,7 +48,7 @@ uv sync
 ```bash
 python -m apm run --demo
 ```
-This runs all 11 agents on cached data and writes outputs to `output/agents/*.json`.
+Runs all agents on cached data and writes outputs to `output/agents/*.json`.
 
 ### 3. Start the API
 ```bash
@@ -53,6 +69,7 @@ python -m apm run --demo                    # full demo run
 python -m apm run --demo --report           # + write output/report.md
 python -m apm run --demo --agent economy    # run only EconomyAgent
 python -m apm run --demo --from sector      # resume from SectorAgent
+python -m apm run --agent backtest          # run live 10-year backtest
 python -m apm run --log-level DEBUG         # verbose per-agent logging
 ```
 
@@ -64,10 +81,33 @@ python -m apm run                           # live FRED + yfinance data
 
 ---
 
+## Frontend Features
+
+### Top Down Analysis tab
+- Full top-down funnel view: economy → cycle → scenarios → sector → style → screen → fundamentals → valuations → recommendations
+- Investment Clock with animated needle
+- H.O.P.E. transmission strip
+- Sector heatmap with macro-variable correlations
+- Single-stock ticker search: enter any ticker to run the full pipeline live (uses cached macro context, fetches live fundamentals, ~20–40s)
+- 10-year sector rotation backtest with live rerun
+
+### My Portfolio tab
+- Add positions: ticker, shares, purchase price, purchase date
+- Fetches live prices every 60 seconds via yfinance
+- Summary: total invested, current value, total P&L, total return %
+- Per-position breakdown: buy price, current price, value, P&L
+- Persisted to localStorage
+
+### Profile tab
+- Project methodology summary (agents 01–10 + 15)
+- Tech stack reference
+
+---
+
 ## Methodology: Top-Down Process
 
 ### Governing philosophy
-- **Macro dominates.** Piper Sandler: ~70% of a stock's movement is explained by macro (market/sector/industry). Brinson et al.: >90% of long-term return variance comes from asset allocation. The macro/cycle/sector/style layers carry the heaviest weight in the confidence score.
+- **Macro dominates.** Piper Sandler: ~70% of a stock's movement is explained by macro (market/sector/industry). Brinson et al.: >90% of long-run return variance comes from asset allocation. Macro/cycle/sector/style layers carry the heaviest weight in the confidence score.
 - **"Trends → business cycle → sector → factor as a screen."** The economic view decides *where to look*; it does NOT forecast individual stock prices.
 - **"The qualitative analysis informs the quantitative analysis, not the other way around."**
 - **Scenario analysis is mandatory, not sensitivity analysis.** ≥3 scenarios per stock; every stock must have a realistic downside.
@@ -80,160 +120,143 @@ python -m apm run                           # live FRED + yfinance data
 
 | # | Agent | Job | Key output |
 |---|-------|-----|-----------|
-| 1 | `EconomyAgent` | Growth + inflation read; CMI; LEI forecast | `EconomyData` |
+| 1 | `EconomyAgent` | Growth + inflation read; CMI score; LEI forecast | `EconomyData` |
 | 2 | `CycleAgent` | Investment Clock phase; H.O.P.E. stage | `CycleData` |
-| 3 | `ScenarioAgent` | Scenario set (must sum to 1.0) | `ScenariosData` |
+| 3 | `ScenarioAgent` | Scenario set with probabilities (must sum to 1.0) | `ScenariosData` |
 | 4 | `SectorAgent` | Sector ranking by macro-variable correlations | `SectorData` |
-| 5 | `StyleAgent` | Factor/style selection for the phase | `StyleData` |
-| 6 | `ScreenAgent` | Magic Formula ranking + sector/style filter | `ScreenData` |
+| 5 | `StyleAgent` | Factor/style selection for the current phase | `StyleData` |
+| 6 | `ScreenAgent` | Magic Formula + Greenblatt EBIT/EV ranking | `ScreenData` |
 | 7 | `FundamentalAgent` | Porter's Five Forces + narrative + value drivers | `FundamentalData` |
-| 8 | `ValuationAgent` | DCF + multiples per scenario; R:R | `ValuationData` |
-| 9 | `RiskCorrelationAgent` | Correlation regime; stock-picking reward | `RiskData` |
-| 10 | `RecommendationAgent` | Confidence score; ranked recommendations | `RecommendationsData` |
-| 11 | `ReportAgent` | Markdown report | `output/report.md` |
+| 8 | `ValuationAgent` | DCF (6-step) + multiples + sector-specific leg per scenario | `ValuationData` |
+| 9 | `RiskCorrelationAgent` | Correlation regime; position sizing; crowding | `RiskData` |
+| 10 | `RecommendationAgent` | Confidence score; Buy/Hold/Sell ranked recommendations | `RecommendationsData` |
+| 11 | `ReportAgent` | Markdown investment report | `output/report.md` |
+| 12 | `LLMAnalysisAgent` | Claude-powered synthesis of full funnel | `LLMAnalysisData` |
+| 13 | `AnalystAgent` | Analyst consensus + price target aggregation | `AgentOutput` |
+| 14 | `SecFilingsAgent` | SEC EDGAR filing summaries | `AgentOutput` |
+| 15 | `BacktestAgent` | 10-year sector rotation backtest vs SPY | `BacktestData` |
 
 ---
 
-## Tunable Assumptions (All Config-Driven)
+## All Tunable Assumptions
 
-> Update these in `config/` without touching any Python code.
-> All assumptions and their rationale are documented here so the context survives across sessions.
-
-### `config/scenarios.yaml` — Scenario Probabilities
-
-**Current settings:** Base 55% / Bull 25% / Bear 20%
-
-| Parameter | Default | Rationale |
-|-----------|---------|-----------|
-| `base_case.probability` | 0.55 | Stagflation / soft-landing base in current cycle |
-| `bull_case.probability` | 0.25 | Re-acceleration if Fed cuts early or oil falls |
-| `bear_case.probability` | 0.20 | Recession if credit cracks or HOPE transmits faster |
-| **Sum** | **1.00** | **Validated at runtime — will error if wrong** |
-
-**TUNABLE:** Change these to reflect your current view. The base case must remain identical across all stocks. Alternative scenarios (bull/bear) can vary per company but the base cannot (per RCMP methodology).
-
-**Key per-scenario macro inputs:**
-- `gdp_growth_pct` — Real GDP YoY; drives revenue growth proxy
-- `margin_trajectory` — `"compressed"`, `"stable"`, `"recovering"`, `"expanding"`, `"collapsing"`
-- `market_multiple_path` — `"flat"`, `"expanding"`, `"compressing"` — in bear cases the sector multiple itself compresses (not just earnings)
-- `earnings_growth_pct` — Used in multiples valuation
+Every numeric assumption in the model is now config-driven — no Python code changes needed to tune the model.
 
 ### `config/economic_view.yaml` — Current Macro View
 
-**TUNABLE:** Update monthly with new FRED data releases.
+Update monthly with new FRED releases.
 
 | Variable | Current | What it drives |
 |----------|---------|---------------|
 | `growth.level` | `above_trend` | Investment Clock quadrant |
 | `growth.direction` | `falling` | Clockwise rotation signal |
 | `inflation.direction` | `rising` | Clock phase (Inflation vs. Stagflation) |
-| `leading_indicators.ism_new_orders` | 48.1 | PMI proxy; primary LEI; earnings proxy |
+| `leading_indicators.ism_new_orders` | 48.1 | PMI proxy; primary LEI |
 | `leading_indicators.nahb_index` | 43 | H.O.P.E. Housing stage |
-| `market.ten_year_yield_pct` | 4.65 | Rates → P/E regime; sector rotations |
-| `market.baa_credit_spread_pct` | 1.72 | Risk regime; Financials/Staples/HC correlations |
-| `overrides.force_clock_phase` | `null` | Set to e.g. `"STAGFLATION"` to override the agent's computed phase |
+| `market.ten_year_yield_pct` | 4.65 | Rates → P/E regime |
+| `market.baa_credit_spread_pct` | 1.72 | Risk regime |
+| `overrides.force_clock_phase` | `null` | Force e.g. `"STAGFLATION"` to override computed phase |
+
+### `config/scenarios.yaml` — Scenario Probabilities & Macro Assumptions
+
+| Scenario | Probability | Rev Growth | Margin | Earnings Growth | Multiple |
+|----------|-------------|------------|--------|-----------------|---------|
+| Base: Soft Landing | 45% | 6.0% | stable | 8.0% | flat |
+| Bull: Reflation | 30% | 8.0% | expanding | 14.0% | expanding |
+| Bear: Stagflation | 25% | 2.5% | compressed | −5.0% | compressing |
+
+Probabilities must sum to 1.0 — validated at runtime.
 
 ### `config/weights.yaml` — Confidence Score Weights
 
-**TUNABLE:** Weights reflect the ~70% macro / Brinson 90% doctrine. Adjust if your process differs.
-
 | Component | Weight | Rationale |
 |-----------|--------|-----------|
-| Macro/cycle conviction | 30 | Heaviest — clock phase fit + CMI clarity |
+| Macro/cycle conviction | 30 | Clock phase fit + CMI clarity |
 | Sector fit | 20 | Asset allocation dominates long-run returns |
 | Style/factor fit | 15 | Factor exposure for the phase |
 | Reward-to-risk | 15 | Scenario-weighted upside/downside |
 | Fundamental quality | 8 | Porter + narrative + ROIC |
 | Cross-sectional valuation | 5 | Cheap vs. current peers only |
-| Technical catalyst | 4 | 20/200-day MA + intermarket |
+| Technical catalyst | 4 | 20/200-day MA |
 | Stock-picking regime | 3 | Low correlation = higher conviction |
 
-**Penalties (reduce score after base):**
-- No downside scenario: −15 (model integrity failure)
-- Crowding: −10 (consensus Buy = crowded trade)
-- Terminal growth rate too high: −8
-- Factor thesis doesn't hold cross-universe: −5
+Penalties: No downside scenario −15 · Crowding −10 · Terminal g warning −8 · Theme not universal −5
 
-**Confidence thresholds:** Low < 50 ≤ Medium < 75 ≤ High
+Action thresholds: Buy ≥ 60 conf + ≥ 3% return + ≥ 1.5× R:R · Sell < 38 conf or return < −5%
+
+### `config/valuation_assumptions.yaml` — DCF & Sector Model Constants
+
+All previously hardcoded Python constants are now in this file.
+
+**DCF structural:**
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `dcf.reinvestment_cap_pct` | 60 | Max % of NOPAT consumed by reinvestment |
+| `dcf.tv_fallback_multiple` | 15 | Fallback when WACC ≤ terminal_g |
+
+**Sector forward P/E** (most impactful to tune):
+| Sector | Default | Note |
+|--------|---------|------|
+| Technology | 30× | |
+| Financials | 14× | Raise to 18–20× for premier IB universe (GS, MS) |
+| Energy | 13× | Compress in oversupply; raise in supercycle |
+| Consumer Staples | 20× | |
+| *others* | *see file* | |
+
+**Life-cycle P/E multipliers:** Startup 1.30× · Growth 1.20× · Mature 1.00× · Decline 0.85×
+
+**Rate P/E sensitivity:** `rate_pe_sensitivity: 15.0` — P/E compresses 15pts per 100bps above 4% risk-free.
+
+**Third valuation leg:**
+- Financials: Gordon Growth P/B — `peer_pb_median_financials: 1.5` (raise to 2.0–2.5 for premier IB peer group)
+- Energy/Materials: EV/EBITDA — Energy 9×, Materials 10×
+- Tech/Comms (Growth): EV/Sales — Tech 8×, Startup 12×
+
+**Valuation leg weights** (DCF / Multiples / Third):
+- Financials: 25% / 20% / 55%
+- Energy/Materials: 30% / 25% / 45%
+- Others: 45% / 55% / —
+
+**Cross-sectional peer EV/EBITDA medians:** Technology 22× · Health Care 16× · Energy 9× · *see file for all sectors*
+
+### `config/valuation_defaults.json` (written by frontend) — Scalar Defaults
+
+These are editable from the Assumptions panel in the UI without restarting the server.
+
+| Parameter | Default |
+|-----------|---------|
+| `equity_risk_premium` | 5.5% |
+| `tax_rate_pct` | 21.0% |
+| `terminal_g_mature` | 2.0% |
+| `terminal_g_growth` | 2.5% |
+| `bear_multiple_adj` | 0.80× |
+| `bull_multiple_adj` | 1.15× |
 
 ### `config/sector_macro_corr.yaml` — Sector × Macro Correlations
 
-Source: Piper Sandler Field Guide. **Do not change without fresh empirical data.**
+Source: Piper Sandler Field Guide. Do not change without fresh empirical data.
 
-Key values to know:
-- **Staples**: PMI −0.74, Copper −0.83, BAA +0.75 — the most defensive sector
+Key values:
+- **Staples**: PMI −0.74, Copper −0.83, BAA +0.75 — most defensive sector
 - **Energy**: 10yr +0.77, Oil +0.57 — rates AND oil rising = doubly favored
 - **Tech**: 10yr −0.56 — most rate-sensitive large-cap sector
-- **Financials**: BAA −0.66 — hardest hit when credit spreads blow out
-- **Health Care**: Oil −0.73 — unique: outperforms most when oil *falls*
-
-### `config/sector_cyclicality.yaml` — Cyclicality Spectrum
-
-Piper Sandler order (most → least cyclical):
-**Energy → Real Estate → Materials → Financials → Comm Services → Discretionary → Industrials → Tech → Health Care → Utilities → Staples**
-
-TUNABLE: Ordering is empirical from the Field Guide. Do not change without strong justification.
-
-### `config/phase_factor_leaders.yaml` — Factor Leadership by Phase
-
-**Recovery** (growth just turned up): High Beta, Low P/E NTM, Small Cap Value  
-**Expansion** (strong, broadening): High Book Yield, Low P/E NTM, High Cash Flow Yield  
-**Quality** (late cycle, peak): High FCF Yield, High Div Yield, Low EPS Variance  
-**Growth_Slowdown** (decelerating): High EPS Growth, Low Sales Variance, High ROIC  
-**Trough** (downturn): Low Beta, Low D/E, High Interest Coverage  
-
-**TUNABLE:** Weights within each phase reflect Field Guide rankings. Adjust if your phase call differs from what the agent computes.
-
-### `config/factor_macro_corr.yaml` — Factor Cyclicality
-
-Key non-obvious fact:
-> **High Dividend Yield is a CYCLICAL factor** (positive correlation with beta/leverage). Dividend ETFs carry huge sector biases (Energy, Financials, Utilities). Do **not** assume dividend yield = defensive.
-
-**Countercyclical factors** (outperform when growth slows): ROE, EPS Growth, FCF Yield, Low Volatility, Low Beta, ROIC, Low D/E
-
-### `config/hope_sequence.yaml` — H.O.P.E. Transmission Lags
-
-Rate change → **Housing** (1–6m) → **Orders** (4–10m) → **Profits** (7–15m) → **Employment** (12–24m) → Inflation rolls over at the end.
-
-**Current phase: Orders** — NAHB < 50 (Housing confirmed), ISM New Orders < 50 (Orders turning).
-
-TUNABLE: Typical lags are empirical estimates; vary with size of the rate move. The agent uses the indicator readings to classify stage, not calendar time.
-
-### `config/universe.yaml` — Ticker Universe
-
-127 tickers across all 11 GICS sectors. **Demo mode** uses 8 deep-dive tickers: XOM, CVX, FCX, JPM, ABBV, MPC, MSFT, KO.
-
-TUNABLE: Add/remove tickers freely. The `demo_deep_dive_tickers` list controls which tickers get full fundamental + DCF treatment in demo mode.
+- **Financials**: BAA −0.66 — hardest hit when credit spreads widen
+- **Health Care**: Oil −0.73 — outperforms most when oil *falls*
 
 ### `config/holdings.yaml` — Current Portfolio
 
-**Placeholder positions:** MSFT (growth), KO (defensive). Replace with real positions before a live run.
+Placeholder positions for the replacement-logic demo. Replace with real positions before a live run.
 
 Replacement rules:
 - New Buy replaces the weakest holding in the same group (growth or defensive)
 - Only replace if new idea's confidence exceeds holding's by ≥10 points
 - Never replace more than one holding per run without override
 
-### DCF Model Assumptions (in `a08_valuation.py`)
+### `config/universe.yaml` — Ticker Universe
 
-**TUNABLE:** These are coded defaults, not config-driven. Change in the agent file if needed.
+S&P 500 constituents across all 11 GICS sectors. `demo_deep_dive_tickers` controls which tickers get full fundamental + DCF treatment in demo mode (currently 25 tickers including GS, NVDA, AAPL, META, LLY, AMZN, GOOGL, V, UNH, and others).
 
-| Assumption | Default | Rationale |
-|------------|---------|-----------|
-| Terminal growth by life cycle | Startup 3%, Growth 2.5%, Mature 2%, Decline 1% | Per course: vary g by life-cycle stage, not flat for all companies |
-| Terminal g warning bound | min(nominal GDP growth, 10yr yield) | If g exceeds this, warning fires and −8 pts penalty applied |
-| DCF/multiples blend | 60% DCF / 40% multiples | Gives more weight to DCF; adjust if fundamentals are uncertain |
-| Tax rate | 21% | US statutory; change for non-US companies |
-| Equity risk premium | 5.5% | Damodaran long-run estimate; TUNABLE |
-| WACC: sector premium over risk-free | Energy 3.5%, Materials 4.0%, Tech 3.0%, Utilities 2.0%, etc. | Rough defaults; replace with computed WACC for live runs |
-| Bear case multiple compression | 0.80× | Sector P/E compresses 20% in bear scenario (per course requirement) |
-| Bull case multiple expansion | 1.15× | 15% expansion in reflation/bull |
-| Forecast horizon | 5 years (simplified) | Full course: 5–10 years across a full cycle |
-| Sales-to-capital ratio | revenue / (market_cap + debt - cash) | Proxy; replace with balance-sheet data in live mode |
-
-### Composite Macro Indicator (CMI) — `a01_economy.py`
-
-**TUNABLE:** Group weights are coded in the agent, not config-driven.
+### CMI Weights — `a01_economy.py`
 
 | Group | Weight | Key inputs |
 |-------|--------|-----------|
@@ -242,15 +265,7 @@ Replacement rules:
 | Inflation | 25% | ISM Prices Paid (inverted) |
 | Sentiment | 20% | Michigan Sentiment, VIX (inverted) |
 
-CMI > 50 = expansionary; CMI < 50 = contractionary. Direction (rising/falling) matters more than level.
-
-### Intermarket / Rates ↔ P/E Regime Dependency
-
-The ValuationAgent pulls the regime from EconomyAgent to set multiple assumptions:
-- **High-rate regime** (10yr > 4%): P/E falls when rates rise → bear case multiple compression is larger
-- **Low-rate regime** (10yr < 2.5%): P/E can fall when rates fall (growth scare) → different direction
-
-This is seeded in `config/economic_view.yaml` (`market.ten_year_yield_pct`) and used automatically.
+CMI > 50 = expansionary; CMI < 50 = contractionary. Direction matters more than level.
 
 ---
 
@@ -258,19 +273,23 @@ This is seeded in `config/economic_view.yaml` (`market.ten_year_yield_pct`) and 
 
 - **Shared Context**: A Pydantic v2 `Context` dataclass passes down the chain. Each agent reads upstream outputs from `context.economy`, `context.cycle`, etc.
 - **AgentOutput**: Every agent writes a typed `AgentOutput` with `confidence`, `rationale`, `provenance`, and structured `data`. All outputs persist to `output/agents/<name>.json`.
-- **Demo mode**: All agents have a `_run_demo()` path that uses `apm/data/demo_cache/*.json` — no API keys needed.
+- **Demo mode**: All agents have a demo path using `apm/data/demo_cache/*.json` — no API keys needed.
 - **Single-agent runs**: `python -m apm run --demo --agent sector` runs only SectorAgent against cached upstream outputs.
-- **Orchestrator**: `--from <name>` resumes the pipeline from any agent; it pre-loads cached outputs for all agents before the start point.
+- **Orchestrator**: `--from <name>` resumes the pipeline from any agent, pre-loading cached outputs for all prior agents.
+- **Ticker search**: Single-ticker analysis preloads cached macro context (economy → style), injects a synthetic `ScreenCandidate`, then runs Fundamental → Valuation → Risk → Recommendation live. Output saved to `output/ticker/<TICKER>.json`.
+- **Config cache**: All YAML files are `lru_cache`-loaded on first access. The API clears the cache automatically when any config is written via the Assumptions panel.
 
 ---
 
-## Frontend Notes
+## Frontend Stack
 
-- **Stack**: React 19, Vite 6, Tailwind CSS v4 (CSS-first config — no `tailwind.config.js`), Motion v12, Recharts 2, D3 v7, TanStack Query v5, Zustand v5, pnpm
-- **Tailwind v4**: Theme is defined in `src/styles.css` using `@theme {}` block. Custom colors: `navy-*`, `cyan-accent`, `amber-accent`, `green-signal`, `red-signal`
-- **Fonts**: Space Grotesk (headers) + JetBrains Mono (data numerals) — loaded from Google Fonts
-- **Investment Clock**: Pure SVG + D3 arcs + Motion-animated needle overlay
-- **API proxy**: Vite dev server proxies `/api/*` to FastAPI at `:8000`
+- **React 19** · TypeScript · Vite 6
+- **Tailwind CSS v4** (CSS-first config via `@theme {}` in `src/styles.css` — no `tailwind.config.js`)
+- **TanStack Query v5** for data fetching and polling
+- **Motion v12** · Recharts 2 · D3 v7
+- Custom colors: `navy-*` · `cyan-accent` · `amber-accent` · `green-signal` · `red-signal`
+- Fonts: Space Grotesk (display) + JetBrains Mono (data numerals)
+- Vite dev server proxies `/api/*` → FastAPI at `:8000`
 
 ---
 
@@ -288,37 +307,76 @@ Tests cover: scenario probability sum, base-case validation, no-downside warning
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `FRED_API_KEY` | No (demo mode works without it) | FRED macro data; get free at fred.stlouisfed.org |
+| `FRED_API_KEY` | No (demo works without it) | Live FRED macro data — get free at fred.stlouisfed.org |
 
 ---
 
 ## File Tree
 
 ```
-Project APM/
+Project DOIT/
 ├── apm/                         # Python package
 │   ├── core/
 │   │   ├── agent.py             # Agent ABC, AgentOutput, Context (Pydantic v2)
-│   │   ├── orchestrator.py      # Pipeline runner
+│   │   ├── orchestrator.py      # Pipeline runner + --from / --agent flags
 │   │   └── types.py             # Enums: ClockPhase, HopeStage, Action, etc.
 │   ├── agents/
-│   │   ├── a01_economy.py … a11_report.py
+│   │   ├── a01_economy.py       # EconomyAgent — CMI, growth/inflation read
+│   │   ├── a02_cycle.py         # CycleAgent — Investment Clock + H.O.P.E.
+│   │   ├── a03_scenario.py      # ScenarioAgent — Bull/Base/Bear macro
+│   │   ├── a04_sector.py        # SectorAgent — macro-variable correlations
+│   │   ├── a05_style.py         # StyleAgent — phase factor leaders
+│   │   ├── a06_screen.py        # ScreenAgent — Magic Formula ranking
+│   │   ├── a07_fundamental.py   # FundamentalAgent — Porter + narrative
+│   │   ├── a08_valuation.py     # ValuationAgent — DCF + multiples per scenario
+│   │   ├── a09_risk_correlation.py
+│   │   ├── a10_recommendation.py
+│   │   ├── a11_report.py
+│   │   ├── a12_llm_analysis.py  # Claude-powered synthesis
+│   │   ├── a13_analyst.py
+│   │   ├── a14_sec_filings.py
+│   │   └── a15_backtest.py      # 10-year sector rotation vs SPY
 │   ├── data/
 │   │   ├── fetchers.py          # yfinance + FRED + demo cache
 │   │   └── demo_cache/          # macro.json, prices.json, fundamentals.json
 │   └── utils/
-│       ├── config.py            # YAML loader (cached)
-│       └── logging.py           # Structured logging
+│       ├── config.py            # YAML loader (lru_cache); all get_* helpers
+│       ├── sector_ratios.py     # Sector quality scoring + third valuation leg
+│       └── logging.py
 ├── api/
-│   └── main.py                  # FastAPI: /api/agents, /api/recommendations, /api/funnel
-├── config/                      # All editable config (12 YAML files)
+│   └── main.py                  # FastAPI: all /api/* endpoints
+├── config/                      # All editable config (no Python changes needed)
+│   ├── economic_view.yaml       # Monthly macro readings
+│   ├── scenarios.yaml           # Bull/Base/Bear probabilities + macro assumptions
+│   ├── weights.yaml             # Confidence score component weights
+│   ├── valuation_assumptions.yaml  # Sector P/E, WACC premia, leg weights, peer medians
+│   ├── holdings.yaml            # Current portfolio positions
+│   ├── universe.yaml            # S&P 500 ticker universe
+│   ├── sector_cyclicality.yaml
+│   ├── sector_macro_corr.yaml
+│   ├── phase_factor_leaders.yaml
+│   ├── factor_macro_corr.yaml
+│   ├── hope_sequence.yaml
+│   └── size_style_cyclicality.yaml
 ├── frontend/                    # React + Vite + Tailwind v4
 │   └── src/
-│       ├── components/          # TopDownFunnel, InvestmentClock, HopeStrip, SectorHeatmap, ...
-│       ├── lib/api.ts + types.ts
-│       └── App.tsx
+│       ├── components/
+│       │   ├── TopDownFunnel.tsx
+│       │   ├── InvestmentClock.tsx
+│       │   ├── HopeStrip.tsx
+│       │   ├── SectorHeatmap.tsx
+│       │   ├── BacktestPanel.tsx
+│       │   ├── TickerSearch.tsx  # Single-ticker live analysis
+│       │   ├── Portfolio.tsx     # My Portfolio with live prices
+│       │   ├── ProfilePage.tsx
+│       │   └── ConfidenceBar.tsx
+│       ├── lib/
+│       │   ├── api.ts            # All fetch calls
+│       │   └── types.ts          # TypeScript interfaces
+│       └── App.tsx               # Three-tab layout
 ├── output/
-│   └── agents/                  # Agent output artifacts (*.json)
+│   ├── agents/                  # Agent output artifacts (*.json)
+│   └── ticker/                  # Single-ticker analysis outputs (<TICKER>.json)
 ├── tests/                       # pytest suite
 └── pyproject.toml               # uv-managed dependencies
 ```

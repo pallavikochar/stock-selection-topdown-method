@@ -216,6 +216,32 @@ export interface BacktestData {
   methodology: string;
 }
 
+// ── Single-ticker analysis ─────────────────────────────────────────────────
+export interface TickerAnalysis {
+  ticker: string;
+  as_of_date: string;
+  recommendation: StockRecommendation | null;
+  valuation: {
+    current_price: number;
+    prob_weighted_target: number;
+    expected_return_pct: number;
+    reward_to_risk: number;
+    scenario_valuations: ScenarioValuation[];
+  } | null;
+  fundamental: {
+    industry_life_cycle: string;
+    business_model_type: string;
+    narrative_quality: string;
+    key_risks: string[];
+    qualitative_score: number;
+    porter: {
+      overall_score: number;
+      market_share_outlook: string;
+      margin_outlook: string;
+    };
+  } | null;
+}
+
 // ── LLM Analysis (a12) ─────────────────────────────────────────────────────
 export type Grounding = "GROUNDED" | "INFERRED" | "SPECULATIVE";
 export type Sentiment = "BULLISH" | "NEUTRAL" | "BEARISH";

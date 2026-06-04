@@ -1,0 +1,126 @@
+# Sector-level and DCF structural assumptions.
+# All values were previously hardcoded in Python — edit here to tune without touching code.
+# Restart the API server for changes to take effect (values are cached in-process).
+
+# ── DCF structural ─────────────────────────────────────────────────────────────
+dcf:
+  reinvestment_cap_pct: 60     # Max % of NOPAT that reinvestment can consume (floors FCFF > 0)
+  tv_fallback_multiple: 15     # Fallback terminal value multiplier when WACC ≤ terminal_g
+
+# ── Sector WACC premia (basis points added to risk-free rate) ─────────────────
+# Higher for cyclical / commodity sectors; lower for regulated / defensive ones.
+wacc_premium:
+  Energy: 0.035
+  Materials: 0.040
+  Financials: 0.030
+  Industrials: 0.030
+  Technology: 0.030
+  Health_Care: 0.025
+  Consumer_Discretionary: 0.030
+  Consumer_Staples: 0.020
+  Communication_Services: 0.035
+  Utilities: 0.020
+  Real_Estate: 0.030
+
+# ── Sales-to-Capital ratios ───────────────────────────────────────────────────
+# Revenue generated per dollar of invested capital.
+# Asset-light sectors (tech, staples) are high; capital-heavy (utilities, energy) are low.
+sales_to_capital:
+  Technology: 0.90
+  Health_Care: 0.60
+  Communication_Services: 0.65
+  Consumer_Discretionary: 0.80
+  Consumer_Staples: 1.10
+  Financials: 0.20
+  Industrials: 0.60
+  Materials: 0.55
+  Energy: 0.40
+  Utilities: 0.25
+  Real_Estate: 0.20
+
+# ── Sector forward P/E — multiples leg of valuation ──────────────────────────
+# Sector-median NTM P/E. This is the single most impactful assumption to tune.
+# TUNABLE: Raise Financials to 18-20 if your universe is premier IBs (GS, MS) not retail banks.
+# TUNABLE: Raise Energy/Materials in a commodity supercycle; compress in a glut.
+forward_pe:
+  Technology: 30.0
+  Health_Care: 22.0
+  Communication_Services: 21.0
+  Consumer_Discretionary: 23.0
+  Consumer_Staples: 20.0
+  Financials: 14.0           # 14x = commercial bank median; premier IBs deserve 18-20x
+  Industrials: 21.0
+  Materials: 17.0
+  Energy: 13.0
+  Utilities: 18.0
+  Real_Estate: 25.0
+
+# ── Life-cycle P/E multipliers ────────────────────────────────────────────────
+# Applied on top of sector P/E to adjust for growth-stage premium or decline discount.
+lifecycle_pe_adj:
+  Startup: 1.30
+  Growth: 1.20
+  Mature: 1.00
+  Decline: 0.85
+
+# ── Rate sensitivity on P/E ───────────────────────────────────────────────────
+# P/E compresses this many points for every 100bps the risk-free rate is above 4%.
+# Standard estimate: 15. Some practitioners use 10-12 in the current rate regime.
+rate_pe_sensitivity: 15.0
+
+# ── Sector-specific third valuation leg ──────────────────────────────────────
+third_leg:
+
+  # Gordon Growth P/B — dominant for Financials (55% weight by default)
+  # The Gordon model computes intrinsic P/B = ROE / (CoE - g) directly.
+  # peer_pb_median_financials is used only for the cross-sectional peer comparison score.
+  # TUNABLE: Raise to 2.0-2.5 if benchmarking GS/MS against premier-IB peers, not the full sector.
+  gordon_pb:
+    peer_pb_median_financials: 1.5
+
+  # EV/EBITDA — dominant for Energy and Materials (45% weight)
+  # TUNABLE: Raise Energy to 10-11 in a commodity supercycle; compress to 7-8 in a glut.
+  ev_ebitda_multiples:
+    Energy: 9.0
+    Materials: 10.0
+
+  # D&A multipliers used to estimate EBITDA from EBIT (yfinance returns EBIT, not EBITDA)
+  da_multipliers:
+    Energy: 1.60             # Depletion / depreciation heavy in E&P
+    Materials: 1.40
+
+  # EV/Sales — applied only to Tech / Communication_Services in Growth or Startup stage
+  ev_sales_multiples:
+    Technology:
+      Growth: 8.0
+      Startup: 12.0
+    Communication_Services:
+      Growth: 5.0
+      Startup: 8.0
+
+# ── Valuation leg weights [DCF, Multiples, Third] ────────────────────────────
+# Must sum to 1.0. Third weight is ignored when the third leg returns 0.
+leg_weights:
+  Financials:       [0.25, 0.20, 0.55]   # Gordon P/B dominates for banks
+  Utilities:        [0.25, 0.15, 0.60]   # DDM is canonical for regulated utilities
+  Real_Estate:      [0.20, 0.15, 0.65]   # DDM even more dominant for REITs
+  Energy:           [0.30, 0.25, 0.45]   # EV/EBITDA = E&P industry standard
+  Materials:        [0.30, 0.25, 0.45]
+  default_2leg:     [0.45, 0.55, 0.00]   # All other sectors with no third leg
+  tech_growth_3leg: [0.30, 0.30, 0.40]   # Tech/Comms in Growth or Startup stage (EV/Sales)
+
+# ── Cross-sectional peer median EV/EBITDA ────────────────────────────────────
+# Used to score a stock cheap/expensive vs current sector peers.
+# This is NOT a primary valuation driver — it's the 5pt cross-sectional score component.
+peer_ev_ebitda_medians:
+  Technology: 22.0
+  Health_Care: 16.0
+  Communication_Services: 12.0
+  Consumer_Discretionary: 14.0
+  Consumer_Staples: 16.0
+  Financials: 12.0
+  Industrials: 13.0
+  Materials: 10.0
+  Energy: 9.0
+  Utilities: 12.0
+  Real_Estate: 18.0

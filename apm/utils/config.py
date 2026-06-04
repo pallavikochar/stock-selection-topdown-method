@@ -86,6 +86,10 @@ def get_valuation_defaults() -> dict[str, Any]:
     return base
 
 
+def get_valuation_assumptions() -> dict[str, Any]:
+    return load_yaml("valuation_assumptions.yaml")
+
+
 def get_industry_macro_beneficiaries() -> dict[str, Any]:
     return load_yaml("industry_macro_beneficiaries.yaml")
 
