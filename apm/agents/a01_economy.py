@@ -127,6 +127,12 @@ class EconomyAgent(Agent):
             f"LEI: {lei_trajectory}"
         )
 
+        from apm.agents.a16_research import _rag_context
+        rag = _rag_context(
+            "What is the Fed's current stance on interest rates and forward guidance?",
+            doc_type="fed_minutes",
+        )
+
         return AgentOutput(
             agent_name=self.name,
             run_id=run_id,
@@ -140,6 +146,7 @@ class EconomyAgent(Agent):
                 "pmi_source": "ISM / config/economic_view.yaml",
                 "lei_source": "Conference Board / FRED",
                 "cmi_methodology": "z-score diffusion across Growth(30%), Liquidity(25%), Inflation(25%), Sentiment(20%)",
+                **({"rag_fed_context": rag} if rag else {}),
             },
         )
 

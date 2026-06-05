@@ -240,6 +240,15 @@ class ValuationAgent(Agent):
             raw_fund, sector
         )
 
+        # Optionally enrich with RAG-retrieved management revenue guidance
+        from apm.agents.a16_research import _rag_context
+        rag_guidance = _rag_context(
+            f"What revenue guidance did management give for {ticker}?",
+            ticker=ticker,
+        )
+        if rag_guidance:
+            warnings.append(f"RAG guidance [{ticker}]: {rag_guidance[:200]}")
+
         return ValuationData(
             ticker=ticker,
             current_price=round(current_price, 2),

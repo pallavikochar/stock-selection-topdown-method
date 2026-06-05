@@ -217,7 +217,7 @@ async def _run_pipeline(demo: bool) -> None:
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
-            cwd=str(Path(__file__).parent),
+            cwd=str(Path(__file__).parent.parent),
         )
         await proc.wait()
         _run_state["error"] = None if proc.returncode == 0 else f"Exit code {proc.returncode}"
@@ -361,7 +361,7 @@ async def _run_backtest(demo: bool) -> None:
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
-            cwd=str(Path(__file__).parent),
+            cwd=str(Path(__file__).parent.parent),
         )
         await proc.wait()
         _backtest_state["error"] = None if proc.returncode == 0 else f"Exit code {proc.returncode}"
@@ -559,6 +559,111 @@ def _deep_merge(base: dict, override: dict) -> None:
             _deep_merge(base[k], v)
         else:
             base[k] = v
+
+
+# ── RAG endpoints ────────────────────────────────────────────────────────────
+
+_rag_ingest_state: dict = {"running": False, "chunks": 0, "error": None}
+
+
+@app.post("/api/rag/ingest")
+async def rag_ingest(
+    payload: dict[str, Any],
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """
+    Trigger ingestion of a single filing.
+    Body: { ticker: str, doc_type: str, year: int }
+    """
+    ticker = payload.get("ticker", "").strip().upper() or None
+    doc_type = payload.get("doc_type", "10-K")
+    year = int(payload.get("year", 2023))
+
+    if _rag_ingest_state["running"]:
+        return {"status": "already_running"}
+
+    async def _do_ingest() -> None:
+        _rag_ingest_state["running"] = True
+        _rag_ingest_state["error"] = None
+        try:
+            loop = asyncio.get_event_loop()
+            def _sync():
+                from rag.ingest import download_sec_filing, ingest_file
+                path = download_sec_filing(ticker, doc_type, year) if ticker else None
+                if path:
+                    return ingest_file(str(path), doc_type, ticker, f"FY{year}")
+                return 0
+            n = await loop.run_in_executor(None, _sync)
+            _rag_ingest_state["chunks"] = n
+        except Exception as exc:
+            _rag_ingest_state["error"] = str(exc)
+        finally:
+            _rag_ingest_state["running"] = False
+
+    background_tasks.add_task(_do_ingest)
+    return {"status": "started", "ticker": ticker, "doc_type": doc_type, "year": year}
+
+
+@app.post("/api/rag/query")
+async def rag_query(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Retrieve RAG-grounded answer.
+    Body: { query: str, ticker: str | null, doc_type: str | null }
+    Returns: { answer: str, sources: [{text, ticker, doc_type, period, score}] }
+    """
+    query = payload.get("query", "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query is required")
+
+    ticker = payload.get("ticker") or None
+    doc_type = payload.get("doc_type") or None
+
+    def _sync():
+        from rag.retriever import FinancialRetriever
+        retriever = FinancialRetriever()
+        return retriever.retrieve_and_summarize(query, ticker=ticker, doc_type=doc_type)
+
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(None, _sync)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    sources = [
+        {
+            "text": c.text[:500],
+            "ticker": c.metadata.ticker,
+            "doc_type": c.metadata.doc_type,
+            "period": c.metadata.period,
+            "score": c.score,
+            "citation": c.citation(),
+            "score_label": c.score_label(),
+        }
+        for c in result.get("sources", [])
+    ]
+
+    return {
+        "answer": result.get("answer", ""),
+        "sources": sources,
+        "query": query,
+        "avg_score": result.get("avg_score", 0.0),
+    }
+
+
+@app.get("/api/rag/collections")
+async def rag_collections() -> dict[str, Any]:
+    """Return ingestion status: collection name, doc count, unique tickers."""
+    def _sync():
+        from rag.retriever import FinancialRetriever
+        return FinancialRetriever().collection_stats()
+
+    loop = asyncio.get_event_loop()
+    try:
+        stats = await loop.run_in_executor(None, _sync)
+    except Exception:
+        stats = {"name": "financial_docs", "doc_count": 0, "tickers": []}
+
+    return {"collections": [stats]}
 
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────

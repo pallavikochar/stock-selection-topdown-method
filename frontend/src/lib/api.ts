@@ -36,4 +36,19 @@ export const api = {
     fetch(`${BASE}/run/ticker?ticker=${encodeURIComponent(ticker)}`, { method: "POST" }).then(r => r.json()),
   tickerRunStatus: () => get<{ running: boolean; ticker: string | null; finished_at: string | null; error: string | null }>("/run/ticker/status"),
   getTicker: (ticker: string) => get<TickerAnalysis>(`/ticker/${encodeURIComponent(ticker)}`),
+
+  // RAG
+  ragQuery: (query: string, ticker?: string | null, doc_type?: string | null) =>
+    fetch(`${BASE}/rag/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, ticker: ticker ?? null, doc_type: doc_type ?? null }),
+    }).then(r => r.json()),
+  ragIngest: (ticker: string, doc_type: string, year: number) =>
+    fetch(`${BASE}/rag/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker, doc_type, year }),
+    }).then(r => r.json()),
+  ragCollections: () => get<import("./types").RagCollectionsResponse>("/rag/collections"),
 };

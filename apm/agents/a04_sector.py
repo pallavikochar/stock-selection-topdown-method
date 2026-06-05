@@ -80,6 +80,14 @@ class SectorAgent(Agent):
         )
 
         confidence = self._compute_confidence(scored)
+
+        # Optionally enrich with RAG-retrieved analyst commentary on favored sectors
+        from apm.agents.a16_research import _rag_context
+        top_sector = favored[0] if favored else "Technology"
+        rag = _rag_context(
+            f"What are analysts saying about the {top_sector} sector outlook?",
+        )
+
         return AgentOutput(
             agent_name=self.name,
             run_id=context.run_id,
@@ -92,6 +100,7 @@ class SectorAgent(Agent):
             provenance={
                 "correlations_source": "config/sector_macro_corr.yaml (Piper Sandler Field Guide)",
                 "variable_directions": str(var_dirs),
+                **({"rag_sector_context": rag} if rag else {}),
             },
         )
 

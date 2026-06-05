@@ -19,6 +19,8 @@ Economy → Cycle/H.O.P.E. → Scenarios → Sector → Style/Factor → Screen 
 
 Each layer is a separate **agent** that does one job, writes a structured JSON output, and hands off to the next. A React frontend renders the entire funnel visually with three navigation tabs: **Top Down Analysis**, **My Portfolio**, and **Profile**.
 
+A **RAG layer** (Qdrant + LangChain) grounds agents in SEC 10-K/10-Q filings, earnings transcripts, and Fed minutes — so macro, sector, and valuation agents can cite actual management guidance and FOMC language rather than operating purely from quantitative signals.
+
 ---
 
 ## Screenshots
@@ -38,6 +40,7 @@ Each layer is a separate **agent** that does one job, writes a structured JSON o
 ### Prerequisites
 - Python 3.12+ with [`uv`](https://docs.astral.sh/uv/)
 - Node.js 20+ with [`pnpm`](https://pnpm.io/)
+- Docker (optional — for Qdrant vector DB)
 
 ### 1. Install Python dependencies
 ```bash
@@ -78,6 +81,25 @@ python -m apm run --log-level DEBUG         # verbose per-agent logging
 export FRED_API_KEY=your_fred_key
 python -m apm run                           # live FRED + yfinance data
 ```
+
+### RAG (optional — SEC filings + Fed minutes)
+```bash
+# 1. Start Qdrant
+docker run -p 6333:6333 qdrant/qdrant
+
+# 2. Bootstrap with sample tickers (AAPL, SPG, O, PLD) + last 3 Fed minutes
+python scripts/bootstrap_rag.py
+
+# 3. Or ingest specific filings
+python -m rag.ingest --ticker AAPL --doc_type 10-K --year 2023
+python -m rag.ingest --file data/raw/fomc_minutes.pdf --doc_type fed_minutes
+python -m rag.ingest --all   # ingest everything in data/raw/
+```
+
+Once Qdrant has documents:
+- The **RAG Research panel** in the dashboard lets you ask free-text questions with per-chunk similarity scores and citations
+- **Economy**, **Sector**, and **Valuation** agents automatically include grounded context in their `provenance` output
+- The dashboard header shows a live doc count badge (green when docs are ingested)
 
 ---
 
@@ -135,6 +157,7 @@ python -m apm run                           # live FRED + yfinance data
 | 13 | `AnalystAgent` | Analyst consensus + price target aggregation | `AgentOutput` |
 | 14 | `SecFilingsAgent` | SEC EDGAR filing summaries | `AgentOutput` |
 | 15 | `BacktestAgent` | 10-year sector rotation backtest vs SPY | `BacktestData` |
+| 16 | `ResearchAgent` | RAG retrieval from SEC filings + Fed minutes; cited answers | `AgentOutput` |
 
 ---
 
@@ -278,6 +301,8 @@ CMI > 50 = expansionary; CMI < 50 = contractionary. Direction matters more than 
 - **Orchestrator**: `--from <name>` resumes the pipeline from any agent, pre-loading cached outputs for all prior agents.
 - **Ticker search**: Single-ticker analysis preloads cached macro context (economy → style), injects a synthetic `ScreenCandidate`, then runs Fundamental → Valuation → Risk → Recommendation live. Output saved to `output/ticker/<TICKER>.json`.
 - **Config cache**: All YAML files are `lru_cache`-loaded on first access. The API clears the cache automatically when any config is written via the Assumptions panel.
+- **RAG layer**: `rag/` is a standalone module. `FinancialRetriever` lazily connects to Qdrant and selects the embedding provider at runtime (OpenAI if `OPENAI_API_KEY` is set, otherwise local `BAAI/bge-base-en-v1.5` via sentence-transformers). Three agents call `_rag_context()` for optional enrichment — it never raises, so the pipeline runs normally with or without Qdrant running.
+- **RAG synthesis**: Uses Anthropic Claude (already a project dependency) rather than adding another API key requirement. Model is configurable via `RAG_SYNTHESIS_MODEL` env var.
 
 ---
 
@@ -301,6 +326,8 @@ uv run pytest tests/ -v
 
 Tests cover: scenario probability sum, base-case validation, no-downside warning, terminal-g warning, sector ranking respects cyclicality, high-correlation regime guidance, full pipeline on demo data, API smoke tests.
 
+RAG tests (`tests/test_rag.py`): chunk size validation, document metadata citations, score labels, metadata filtering by ticker and doc_type, empty-collection error handling, synthesis result contract, graceful degradation when Qdrant is unavailable.
+
 ---
 
 ## Environment Variables
@@ -308,13 +335,27 @@ Tests cover: scenario probability sum, base-case validation, no-downside warning
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `FRED_API_KEY` | No (demo works without it) | Live FRED macro data — get free at fred.stlouisfed.org |
+| `ANTHROPIC_API_KEY` | No (LLM features disabled) | Claude for LLM Analysis + RAG synthesis |
+| `OPENAI_API_KEY` | No | Better embeddings (`text-embedding-3-small`); falls back to local `BAAI/bge-base-en-v1.5` |
+| `QDRANT_HOST` | No (default `localhost`) | Qdrant vector DB host |
+| `QDRANT_PORT` | No (default `6333`) | Qdrant vector DB port |
+| `RAG_TOP_K` | No (default `6`) | Chunks retrieved per query |
+| `RAG_CHUNK_SIZE` | No (default `512`) | Token chunk size for ingestion |
 
 ---
 
 ## File Tree
 
 ```
-Project DOIT/
+Project APM/
+├── rag/                         # RAG layer (Qdrant + LangChain)
+│   ├── __init__.py
+│   ├── config.py                # All RAG config (chunk size, top_k, collection name)
+│   ├── sources.py               # DocumentMetadata, RetrievedChunk (Pydantic)
+│   ├── ingest.py                # Load → chunk → embed → upsert pipeline; SEC EDGAR auto-download
+│   └── retriever.py             # FinancialRetriever: embed query → Qdrant → LLM synthesis
+├── data/
+│   └── raw/                     # Drop PDFs/TXTs here; run python -m rag.ingest --all
 ├── apm/                         # Python package
 │   ├── core/
 │   │   ├── agent.py             # Agent ABC, AgentOutput, Context (Pydantic v2)
@@ -335,7 +376,8 @@ Project DOIT/
 │   │   ├── a12_llm_analysis.py  # Claude-powered synthesis
 │   │   ├── a13_analyst.py
 │   │   ├── a14_sec_filings.py
-│   │   └── a15_backtest.py      # 10-year sector rotation vs SPY
+│   │   ├── a15_backtest.py      # 10-year sector rotation vs SPY
+│   │   └── a16_research.py     # ResearchAgent — RAG retrieval helper; _rag_context()
 │   ├── data/
 │   │   ├── fetchers.py          # yfinance + FRED + demo cache
 │   │   └── demo_cache/          # macro.json, prices.json, fundamentals.json
@@ -369,6 +411,7 @@ Project DOIT/
 │       │   ├── TickerSearch.tsx  # Single-ticker live analysis
 │       │   ├── Portfolio.tsx     # My Portfolio with live prices
 │       │   ├── ProfilePage.tsx
+│       │   ├── RagPanel.tsx      # RAG query widget + source cards + ingestion badge
 │       │   └── ConfidenceBar.tsx
 │       ├── lib/
 │       │   ├── api.ts            # All fetch calls
@@ -377,6 +420,13 @@ Project DOIT/
 ├── output/
 │   ├── agents/                  # Agent output artifacts (*.json)
 │   └── ticker/                  # Single-ticker analysis outputs (<TICKER>.json)
-├── tests/                       # pytest suite
+├── scripts/
+│   ├── bootstrap_rag.py         # Download AAPL/SPG/O/PLD 10-Ks + 3 Fed minutes → ingest
+│   └── generate_universe.py
+├── tests/
+│   ├── test_rag.py              # 17 unit tests: chunks, metadata, retrieval, synthesis
+│   ├── test_pipeline.py
+│   └── test_valuation.py
+├── docker-compose.yml           # Qdrant service (+ optional API service)
 └── pyproject.toml               # uv-managed dependencies
 ```

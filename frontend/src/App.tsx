@@ -13,6 +13,7 @@ import { AssumptionsPanel } from "./components/AssumptionsPanel";
 import { Portfolio } from "./components/Portfolio";
 import { TickerSearch } from "./components/TickerSearch";
 import { ProfilePage } from "./components/ProfilePage";
+import { RagPanel, RagIngestionBadge } from "./components/RagPanel";
 import type {
   AnalystConsensus, BacktestData, CycleData, EconomyData,
   LLMAnalysisData, SECFilingsData, SectorScore, Scenario, StockRecommendation,
@@ -148,6 +149,7 @@ export default function App() {
             {funnel?.as_of_date && (
               <span className="text-xs text-navy-500 font-mono">{funnel.as_of_date}</span>
             )}
+            <RagIngestionBadge />
             {activeTab === "analysis" && (
               <button
                 onClick={handleRun}
@@ -329,12 +331,17 @@ export default function App() {
                 )}
               </section>
 
-              {/* ⑦ Model Assumptions */}
+              {/* ⑦ RAG Research Panel */}
+              <section>
+                <RagPanel />
+              </section>
+
+              {/* ⑧ Model Assumptions */}
               <section>
                 <AssumptionsPanel />
               </section>
 
-              {/* ⑧ 10-Year Backtest */}
+              {/* ⑨ 10-Year Backtest */}
               {backtestData && (
                 <section className="bg-navy-900 rounded-xl border border-navy-800 p-6">
                   <div className="flex items-center justify-between mb-4">

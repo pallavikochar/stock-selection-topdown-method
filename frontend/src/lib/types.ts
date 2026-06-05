@@ -267,3 +267,33 @@ export interface LLMAnalysisData {
   model_used: string;
   verification_method: string;
 }
+
+// ── RAG ────────────────────────────────────────────────────────────────────
+export type ScoreLabel = "high" | "medium" | "low";
+
+export interface RagSource {
+  text: string;
+  ticker: string | null;
+  doc_type: string;
+  period: string | null;
+  score: number;
+  citation: string;
+  score_label: ScoreLabel;
+}
+
+export interface RagQueryResult {
+  answer: string;
+  sources: RagSource[];
+  query: string;
+  avg_score: number;
+}
+
+export interface RagCollectionStats {
+  name: string;
+  doc_count: number;
+  tickers: string[];
+}
+
+export interface RagCollectionsResponse {
+  collections: RagCollectionStats[];
+}
