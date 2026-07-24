@@ -27,6 +27,9 @@ EMBEDDING_DIM_LOCAL: int = 768
 
 # Synthesis LLM — uses Anthropic (already a project dependency) by default
 SYNTHESIS_MODEL: str = os.getenv("RAG_SYNTHESIS_MODEL", "claude-haiku-4-5-20251001")
+# Escalation model for low-confidence retrievals (avg_score < ESCALATION_THRESHOLD)
+ESCALATION_MODEL: str = os.getenv("RAG_ESCALATION_MODEL", "claude-sonnet-5-20251101")
+ESCALATION_THRESHOLD: float = float(os.getenv("RAG_ESCALATION_THRESHOLD", "0.55"))
 
 # Document types supported
 DOC_TYPES: list[str] = [
@@ -35,8 +38,9 @@ DOC_TYPES: list[str] = [
 
 
 def embedding_provider() -> str:
-    """Return 'openai' if OPENAI_API_KEY is set, else 'local'."""
-    return "openai" if os.getenv("OPENAI_API_KEY") else "local"
+    """Return 'openai' if a valid OPENAI_API_KEY is set, else 'local'."""
+    key = os.getenv("OPENAI_API_KEY", "")
+    return "openai" if key.startswith("sk-") else "local"
 
 
 def embedding_dim() -> int:

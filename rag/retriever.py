@@ -4,8 +4,11 @@ FinancialRetriever: embed query → Qdrant metadata-filtered search → LLM synt
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import time
+from pathlib import Path
 from typing import Optional
 
 from rag.config import (
@@ -124,16 +127,17 @@ class FinancialRetriever:
             from qdrant_client.models import Filter
             search_filter = Filter(must=must_conditions)
 
-        results = self._get_client().search(
+        # Fetch 4× candidates so the cross-encoder has room to rerank
+        response = self._get_client().query_points(
             collection_name=self.collection_name,
-            query_vector=query_vec,
+            query=query_vec,
             query_filter=search_filter,
-            limit=k,
+            limit=k * 4,
             with_payload=True,
         )
 
         chunks = []
-        for hit in results:
+        for hit in response.points:
             payload = hit.payload or {}
             meta = DocumentMetadata(
                 ticker=payload.get("ticker"),
@@ -149,7 +153,7 @@ class FinancialRetriever:
                 score=float(hit.score),
             ))
 
-        return sorted(chunks, key=lambda c: c.score, reverse=True)
+        return self._rerank(query, chunks, k)
 
     def retrieve_and_summarize(
         self,
@@ -187,15 +191,17 @@ class FinancialRetriever:
         )
         prompt = SYNTHESIS_PROMPT.format(query=query, formatted_chunks=formatted)
 
-        answer = self._synthesize(prompt)
         avg_score = sum(c.score for c in chunks) / len(chunks)
-
-        return {
+        t0 = time.time()
+        answer = self._synthesize(prompt, avg_score=avg_score)
+        result = {
             "answer": answer,
             "sources": chunks,
             "query": query,
             "avg_score": round(avg_score, 3),
         }
+        self._trace(query, chunks, answer, time.time() - t0)
+        return result
 
     def collection_stats(self) -> dict:
         """Return collection name, doc count, and unique tickers."""
@@ -232,17 +238,72 @@ class FinancialRetriever:
             log.debug("collection_stats failed: %s", exc)
             return {"name": self.collection_name, "doc_count": 0, "tickers": []}
 
+    # ── Cross-encoder re-ranking ──────────────────────────────────────────────
+
+    def _rerank(self, query: str, chunks: list, top_k: int) -> list:
+        if not chunks:
+            return chunks
+        try:
+            from sentence_transformers import CrossEncoder
+            if not hasattr(self, "_cross_encoder"):
+                # ponytail: lazy singleton; swap model name for a larger one if precision matters
+                self._cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+            pairs = [[query, c.text[:512]] for c in chunks]
+            scores = self._cross_encoder.predict(pairs)
+            ranked = sorted(zip(scores, chunks), key=lambda x: x[0], reverse=True)
+            return [c for _, c in ranked[:top_k]]
+        except Exception as exc:
+            log.debug("Re-ranking unavailable, falling back to dense scores: %s", exc)
+            return sorted(chunks, key=lambda c: c.score, reverse=True)[:top_k]
+
+    # ── Call tracing ──────────────────────────────────────────────────────────
+
+    def _trace(self, query: str, chunks: list, answer: str, latency_s: float) -> None:
+        try:
+            trace_path = Path("output/rag_traces.jsonl")
+            trace_path.parent.mkdir(parents=True, exist_ok=True)
+            record = {
+                "query": query,
+                "n_chunks": len(chunks),
+                "avg_score": round(sum(c.score for c in chunks) / len(chunks), 3) if chunks else 0,
+                "top_score": round(chunks[0].score, 3) if chunks else 0,
+                "latency_s": round(latency_s, 2),
+                "answer_preview": answer[:200],
+                "tickers": list({c.metadata.ticker for c in chunks if c.metadata.ticker}),
+            }
+            with trace_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
+        except Exception:
+            pass  # tracing must never break the hot path
+
     # ── LLM synthesis (Anthropic) ─────────────────────────────────────────────
 
-    def _synthesize(self, prompt: str) -> str:
-        """Send prompt to Anthropic Claude and return the answer text."""
+    def _synthesize(self, prompt: str, avg_score: float = 1.0) -> str:
+        """
+        Synthesize answer via Anthropic with prompt caching + model routing.
+        Routes to escalation model when retrieval confidence is low.
+        """
+        from rag.config import ESCALATION_MODEL, ESCALATION_THRESHOLD
         try:
             import anthropic
             client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            # Route: low retrieval confidence → escalate to stronger model
+            model = ESCALATION_MODEL if avg_score < ESCALATION_THRESHOLD else SYNTHESIS_MODEL
             msg = client.messages.create(
-                model=SYNTHESIS_MODEL,
+                model=model,
                 max_tokens=1024,
+                system=[{
+                    "type": "text",
+                    "text": (
+                        "You are a financial research assistant. Answer questions using ONLY "
+                        "the provided context excerpts. Cite documents as [TICKER DOC_TYPE PERIOD]. "
+                        "If context doesn't contain the answer, say 'Not found in ingested documents.'"
+                    ),
+                    # ponytail: cache_control caches this system prompt across calls; saves ~200 tokens/call
+                    "cache_control": {"type": "ephemeral"},
+                }],
                 messages=[{"role": "user", "content": prompt}],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             )
             return msg.content[0].text if msg.content else "No response from LLM."
         except Exception as exc:
