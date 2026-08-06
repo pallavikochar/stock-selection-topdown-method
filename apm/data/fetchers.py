@@ -114,12 +114,22 @@ def _norm_pct_yield(value: float) -> float:
 def _normalize_fundamentals(info: dict) -> dict[str, Any]:
     raw_sector = info.get("sector", "")
     sector = _YFINANCE_SECTOR_MAP.get(raw_sector, raw_sector)
+    # yfinance sometimes omits marketCap / sharesOutstanding for large caps;
+    # floatShares is a reliable fallback
+    price = info.get("currentPrice") or info.get("regularMarketPrice") or 0
+    shares = (
+        info.get("sharesOutstanding")
+        or info.get("impliedSharesOutstanding")
+        or info.get("floatShares")
+        or 0
+    )
+    market_cap = info.get("marketCap") or (shares * price if shares and price else 0)
     return {
         "ticker": info.get("symbol", ""),
         "name": info.get("longName", ""),
         "sector": sector,
         "industry": info.get("industry", ""),
-        "market_cap": info.get("marketCap", 0),
+        "market_cap": market_cap,
         "enterprise_value": info.get("enterpriseValue", 0),
         "revenue_ttm": info.get("totalRevenue", 0),
         "ebit_ttm": info.get("ebit", 0),
@@ -127,7 +137,7 @@ def _normalize_fundamentals(info: dict) -> dict[str, Any]:
         "free_cash_flow": info.get("freeCashflow", 0),
         "total_debt": info.get("totalDebt", 0),
         "cash": info.get("totalCash", 0),
-        "shares_outstanding": info.get("sharesOutstanding", 0),
+        "shares_outstanding": shares,
         "beta": info.get("beta", 1.0),
         "pe_ttm": info.get("trailingPE"),
         "pe_fwd": info.get("forwardPE"),
@@ -145,6 +155,8 @@ def _normalize_fundamentals(info: dict) -> dict[str, Any]:
         "net_margin": info.get("profitMargins"),
         "revenue_growth_yoy": info.get("revenueGrowth"),
         "earnings_growth_yoy": info.get("earningsGrowth"),
+        "forward_eps": info.get("forwardEps"),
+        "trailing_eps": info.get("trailingEps"),
         "analyst_target_price": info.get("targetMeanPrice"),
         "analyst_recommendation": info.get("recommendationKey", ""),
     }
@@ -160,7 +172,8 @@ def _empty_fundamentals(ticker: str) -> dict[str, Any]:
         "roic": None, "debt_to_equity": None, "current_price": 0,
         "dividend_yield": 0, "payout_ratio": 0, "gross_margin": None,
         "operating_margin": None, "net_margin": None, "revenue_growth_yoy": None,
-        "earnings_growth_yoy": None, "analyst_target_price": None,
+        "earnings_growth_yoy": None, "forward_eps": None, "trailing_eps": None,
+        "analyst_target_price": None,
         "analyst_recommendation": "",
     }
 
@@ -186,10 +199,15 @@ def compute_ebit_ev(fundamentals: dict[str, Any]) -> Optional[float]:
 
 
 def compute_ebit_tangible_assets(fundamentals: dict[str, Any]) -> Optional[float]:
-    """EBIT / (Net working capital + Net fixed assets) — Greenblatt return on capital."""
+    """EBIT / invested capital proxy — Greenblatt return on capital.
+    Uses EV (market_cap + debt - cash) as invested capital approximation;
+    closer to Greenblatt's net working capital + net fixed assets than
+    market_cap alone, and moves in the correct direction for high-/low-P/B stocks.
+    """
     ebit = fundamentals.get("ebit_ttm", 0)
-    total_assets = fundamentals.get("market_cap", 0)  # proxy; real implementation uses balance sheet
-    total_debt = fundamentals.get("total_debt", 0)
-    cash = fundamentals.get("cash", 0)
-    tangible = max(total_assets - cash + total_debt, 1)
-    return ebit / tangible if ebit else None
+    market_cap = fundamentals.get("market_cap", 0) or 0
+    total_debt = fundamentals.get("total_debt", 0) or 0
+    cash = fundamentals.get("cash", 0) or 0
+    # EV proxy for invested capital: equity value + debt - excess cash
+    invested_capital = max(market_cap + total_debt - cash, 1)
+    return ebit / invested_capital if ebit else None

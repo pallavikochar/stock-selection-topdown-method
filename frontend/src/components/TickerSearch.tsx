@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { ConfidenceBar } from "./ConfidenceBar";
+import { PorterRadar } from "./PorterRadar";
 import type { TickerAnalysis } from "../lib/types";
 
 const ACTION_STYLE: Record<string, string> = {
@@ -160,7 +161,7 @@ export function TickerSearch() {
                     positive={rec.action === "Sell" ? val.expected_return_pct < 0 : val.expected_return_pct > 0}
                   />
                   <Stat label="Reward : Risk" value={`${fmt(val.reward_to_risk, 1)}×`} />
-                  <Stat label="Confidence" value={`${rec.confidence_label} ${rec.confidence_numeric.toFixed(0)}`} />
+                  <Stat label="Conviction" value={`${rec.conviction_label} ${rec.conviction_score.toFixed(0)}`} />
                 </div>
 
                 <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest pt-1">Scenarios</h4>
@@ -181,32 +182,36 @@ export function TickerSearch() {
 
             {/* Fundamentals */}
             {fund && (
-              <div className="space-y-3">
-                <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest">Fundamentals</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <Stat label="Life Cycle" value={fund.industry_life_cycle} />
-                  <Stat label="Business Model" value={fund.business_model_type} />
-                  <Stat label="Porter Score" value={`${fund.porter.overall_score}/10`} />
-                  <Stat label="Quality Score" value={`${fund.qualitative_score.toFixed(0)}/100`} />
-                </div>
-
-                {(rec.warnings.length > 0 || fund.key_risks.length > 0) && (
-                  <>
-                    <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest pt-1">Key Risks</h4>
-                    <div className="space-y-1">
-                      {rec.warnings.map((w, i) => (
-                        <div key={i} className="flex gap-2 text-xs text-amber-accent">
-                          <span>⚠</span><span>{w}</span>
-                        </div>
-                      ))}
-                      {fund.key_risks.map((r, i) => (
-                        <div key={i} className="flex gap-2 text-xs text-navy-400">
-                          <span className="text-navy-600">·</span><span>{r}</span>
-                        </div>
-                      ))}
+              <div className="space-y-4">
+                <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest">Porter's Five Forces</h4>
+                <div className="flex flex-col sm:flex-row gap-6 items-start">
+                  <PorterRadar porter={fund.porter} size={200} />
+                  <div className="space-y-3 flex-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Stat label="Life Cycle" value={fund.industry_life_cycle} />
+                      <Stat label="Business Model" value={fund.business_model_type} />
+                      <Stat label="Porter Score" value={`${fund.porter.overall_score}/10`} />
+                      <Stat label="Quality Score" value={`${fund.qualitative_score.toFixed(0)}/100`} />
                     </div>
-                  </>
-                )}
+                    {(rec.warnings.length > 0 || fund.key_risks.length > 0) && (
+                      <div>
+                        <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest pt-1 mb-1">Key Risks</h4>
+                        <div className="space-y-1">
+                          {rec.warnings.map((w, i) => (
+                            <div key={i} className="flex gap-2 text-xs text-amber-accent">
+                              <span>⚠</span><span>{w}</span>
+                            </div>
+                          ))}
+                          {fund.key_risks.map((r, i) => (
+                            <div key={i} className="flex gap-2 text-xs text-navy-400">
+                              <span className="text-navy-600">·</span><span>{r}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -222,7 +227,7 @@ export function TickerSearch() {
           {/* Confidence breakdown */}
           <div>
             <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-2">Confidence Breakdown</h4>
-            <ConfidenceBar breakdown={rec.confidence_breakdown} total={rec.confidence_numeric} />
+            <ConfidenceBar breakdown={rec.conviction_breakdown} total={rec.conviction_score} />
           </div>
         </div>
       )}

@@ -64,16 +64,29 @@ class EconomyAgent(Agent):
         inflation_level = InflationLevel(snap.get("inflation_level", "elevated"))
         inflation_direction = Direction(snap.get("inflation_direction", "rising"))
 
-        pmi = snap.get("ism_new_orders", 50.0)
+        pmi = snap.get("ism_new_orders")
+        if pmi is None:
+            raise RuntimeError(
+                "ism_new_orders (PMI) is required but missing from macro snapshot. "
+                "Set FRED_API_KEY for live data or populate config/economic_view.yaml. "
+                "A 50.0 default sits exactly on the expansion/contraction discontinuity "
+                "and makes clock-phase assignment meaningless."
+            )
         pmi_dir = Direction.FALLING if pmi < 50 else Direction.RISING
         cmi = snap.get("cmi_score") or self._compute_cmi(snap)[0]
         cmi_dir_raw = snap.get("cmi_direction", "falling")
         cmi_dir = Direction(cmi_dir_raw) if cmi_dir_raw else Direction.FALLING
 
         # Cost of money: 10yr yield + fed funds + yield curve
-        ten_yr = snap.get("ten_year_yield_pct", 4.65)
-        fed = snap.get("fed_funds_pct", 5.25)
-        yc = snap.get("yield_curve_2s10s_bps", -15)
+        _DEFAULTS = {"ten_year_yield_pct": 4.65, "fed_funds_pct": 5.25,
+                     "yield_curve_2s10s_bps": -15, "wti_crude_usd": 78.0,
+                     "ism_prices_paid": 55.0, "conference_board_lei_yoy_pct": -2.1}
+        data_gaps = [k for k, v in _DEFAULTS.items() if snap.get(k) is None]
+        if data_gaps:
+            log.warning("a01_economy: substituting hardcoded defaults for missing keys: %s", data_gaps)
+        ten_yr = snap.get("ten_year_yield_pct") if snap.get("ten_year_yield_pct") is not None else 4.65
+        fed = snap.get("fed_funds_pct") if snap.get("fed_funds_pct") is not None else 5.25
+        yc = snap.get("yield_curve_2s10s_bps") if snap.get("yield_curve_2s10s_bps") is not None else -15
         if ten_yr > 4.0 or fed > 4.0:
             cost_of_money = "tight — weighing on multiples and credit"
         elif ten_yr < 2.5:
@@ -82,8 +95,8 @@ class EconomyAgent(Agent):
             cost_of_money = "neutral"
 
         # Cost of goods: oil + prices paid
-        wti = snap.get("wti_crude_usd", 78.0)
-        pp = snap.get("ism_prices_paid", 55.0)
+        wti = snap.get("wti_crude_usd") if snap.get("wti_crude_usd") is not None else 78.0
+        pp = snap.get("ism_prices_paid") if snap.get("ism_prices_paid") is not None else 55.0
         if wti > 90 or pp > 60:
             cost_of_goods = "elevated — margin pressure for non-energy sectors"
         elif wti < 60 and pp < 45:
@@ -92,7 +105,7 @@ class EconomyAgent(Agent):
             cost_of_goods = "moderate"
 
         # LEI trajectory
-        lei_yoy = snap.get("conference_board_lei_yoy_pct", -2.1)
+        lei_yoy = snap.get("conference_board_lei_yoy_pct") if snap.get("conference_board_lei_yoy_pct") is not None else -2.1
         if lei_yoy < -1.5:
             lei_trajectory = f"contracting (CB LEI {lei_yoy:+.1f}% YoY) — recessionary signal in 6–12 months"
         elif lei_yoy < 0:
@@ -156,7 +169,9 @@ class EconomyAgent(Agent):
         TUNABLE: Group weights are in provenance; change here if methodology shifts.
         Returns (score 0-100, direction "rising"|"falling").
         """
-        pmi = snap.get("ism_new_orders", 50.0)
+        pmi = snap.get("ism_new_orders")
+        if pmi is None:
+            raise RuntimeError("ism_new_orders (PMI) missing from macro snapshot")
         lei_yoy = snap.get("conference_board_lei_yoy_pct", 0.0)
         sentiment = snap.get("michigan_sentiment", 70.0)
         baa = snap.get("baa_credit_spread_pct", 1.5)
@@ -186,7 +201,9 @@ class EconomyAgent(Agent):
     def _compute_confidence(self, snap: dict) -> float:
         """How clearly do LEIs, PMI, LEI, sentiment, spreads all agree?"""
         signals = []
-        pmi = snap.get("ism_new_orders", 50.0)
+        pmi = snap.get("ism_new_orders")
+        if pmi is None:
+            raise RuntimeError("ism_new_orders (PMI) missing from macro snapshot")
         signals.append(1 if pmi < 50 else -1)  # expect contraction given stage
         lei_yoy = snap.get("conference_board_lei_yoy_pct", 0.0)
         signals.append(1 if lei_yoy < 0 else -1)
@@ -198,7 +215,9 @@ class EconomyAgent(Agent):
 
     def _build_warnings(self, snap: dict) -> list[str]:
         warnings = []
-        pmi = snap.get("ism_new_orders", 50.0)
+        pmi = snap.get("ism_new_orders")
+        if pmi is None:
+            raise RuntimeError("ism_new_orders (PMI) missing from macro snapshot")
         prices_paid = snap.get("ism_prices_paid", 55.0)
         if pmi < 50 and prices_paid > 55:
             warnings.append("Stagflationary signal: PMI contracting while Prices Paid elevated")

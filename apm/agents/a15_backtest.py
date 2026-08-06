@@ -231,4 +231,9 @@ class BacktestAgent(Agent):
         for start, end, regime in _REGIME_PERIODS:
             if start <= ym <= end:
                 return regime
+        log.warning(
+            "_regime_for: %s falls outside _REGIME_PERIODS (ends 202406) — "
+            "defaulting to REFLATION. Extend _REGIME_PERIODS for accurate live backtest.",
+            ym,
+        )
         return "REFLATION"

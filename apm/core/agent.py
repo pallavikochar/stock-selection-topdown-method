@@ -228,29 +228,25 @@ class ConfidenceBreakdown(BaseModel):
     crowding_penalty: float
     terminal_g_warning_penalty: float
     theme_not_universal_penalty: float
+    renormalization_factor: float = 1.0  # > 1.0 when screen_candidate absent (81 pt base → 100 pt scale)
 
     @property
     def total(self) -> float:
-        return max(
-            0.0,
-            min(
-                100.0,
-                (
-                    self.macro_cycle_conviction
-                    + self.sector_fit
-                    + self.style_factor_fit
-                    + self.reward_to_risk
-                    + self.fundamental_quality
-                    + self.cross_sectional_valuation
-                    + self.technical_catalyst
-                    + self.stock_picking_regime
-                    + self.no_downside_scenario_penalty
-                    + self.crowding_penalty
-                    + self.terminal_g_warning_penalty
-                    + self.theme_not_universal_penalty
-                ),
-            ),
+        raw = (
+            self.macro_cycle_conviction
+            + self.sector_fit
+            + self.style_factor_fit
+            + self.reward_to_risk
+            + self.fundamental_quality
+            + self.cross_sectional_valuation
+            + self.technical_catalyst
+            + self.stock_picking_regime
+            + self.no_downside_scenario_penalty
+            + self.crowding_penalty
+            + self.terminal_g_warning_penalty
+            + self.theme_not_universal_penalty
         )
+        return max(0.0, min(100.0, raw * self.renormalization_factor))
 
 
 class StockRecommendation(BaseModel):
@@ -260,9 +256,9 @@ class StockRecommendation(BaseModel):
     prob_weighted_target: float
     expected_return_pct: float
     reward_to_risk: float
-    confidence_numeric: float
-    confidence_label: ConfidenceLabel
-    confidence_breakdown: ConfidenceBreakdown
+    conviction_score: float
+    conviction_label: ConfidenceLabel
+    conviction_breakdown: ConfidenceBreakdown
     replaces_ticker: Optional[str]
     thesis: str  # traceable Economy → Cycle → Sector → Style → Stock
     scenario_table: list[ScenarioValuation]

@@ -107,8 +107,12 @@ Once Qdrant has documents:
 
 ### Top Down Analysis tab
 - Full top-down funnel view: economy → cycle → scenarios → sector → style → screen → fundamentals → valuations → recommendations
-- Investment Clock with animated needle
-- H.O.P.E. transmission strip
+- Investment Clock (Merrill Lynch 4-quadrant) with animated needle + market cycle phase badge
+- H.O.P.E. transmission strip (Housing → Orders → Profits → Employment) with rotation direction
+- PMI threshold panel: visual expansion/contraction gauge with 50 threshold
+- Cost of Money / Cost of Goods lead-lag panel (18m / 24m forward PMI signal — Piper Sandler field guide p.6)
+- Style & Factor panel: favored factors with "universal ✓" cross-universe check, avoid list, size/style cyclicality spectrum (SCV → LCG), value vs. growth read, dividend yield warning
+- Porter's Five Forces radar (SVG pentagon) in each stock drawer — "Porter / Fundamentals" tab with business model profile, value drivers, risks
 - Sector heatmap with macro-variable correlations
 - Single-stock ticker search: enter any ticker to run the full pipeline live (uses cached macro context, fetches live fundamentals, ~20–40s)
 - 10-year sector rotation backtest with live rerun
@@ -312,7 +316,8 @@ CMI > 50 = expansionary; CMI < 50 = contractionary. Direction matters more than 
 - **Tailwind CSS v4** (CSS-first config via `@theme {}` in `src/styles.css` — no `tailwind.config.js`)
 - **TanStack Query v5** for data fetching and polling
 - **Motion v12** · Recharts 2 · D3 v7
-- Custom colors: `navy-*` · `cyan-accent` · `amber-accent` · `green-signal` · `red-signal`
+- Design palette: warm onyx/charcoal `navy-*` (hue 58) · gold `cyan-accent` · orange `amber-accent` · `green-signal` · `red-signal`
+- Background: near-black with subtle gold radial gradient + fine dot-grid overlay
 - Fonts: Space Grotesk (display) + JetBrains Mono (data numerals)
 - Vite dev server proxies `/api/*` → FastAPI at `:8000`
 
@@ -327,6 +332,42 @@ uv run pytest tests/ -v
 Tests cover: scenario probability sum, base-case validation, no-downside warning, terminal-g warning, sector ranking respects cyclicality, high-correlation regime guidance, full pipeline on demo data, API smoke tests.
 
 RAG tests (`tests/test_rag.py`): chunk size validation, document metadata citations, score labels, metadata filtering by ticker and doc_type, empty-collection error handling, synthesis result contract, graceful degradation when Qdrant is unavailable.
+
+---
+
+## Audit Notes
+
+A two-pass code audit (`AUDIT_REPORT.md`) was conducted 2026-07-23 / 2026-07-24.
+The following fixes have been applied as of 2026-07-24:
+
+**Fixed:**
+- **P1-3 (→ P0): Synthetic price targets** — `a08_valuation.py` now skips any ticker
+  with no `market_cap` or `revenue_ttm` in the fundamentals cache. Eliminates fake targets
+  from the 16 tickers outside the demo universe.
+- **P1-1 (→ P0): DCF formula −30.3% error** — `a08_valuation.py` now computes the proper
+  5-year discounted FCFF stream (growing at `rev_growth`) and uses year-5 FCFF as the
+  terminal value base (not year-0).
+- **P0-2: PMI defaults at discontinuity** — `a01_economy.py` now raises `RuntimeError`
+  instead of defaulting to 50.0 when `ism_new_orders` is missing. The 50.0 default sat
+  exactly on the expansion/contraction boundary that drives 70 of 100 conviction points.
+  Operating margin missing in a08 now logs a warning instead of silently using 12%.
+- **P0-3: conviction_score renaming** — `confidence_numeric`/`confidence_label`/
+  `confidence_breakdown` renamed to `conviction_score`/`conviction_label`/
+  `conviction_breakdown` across Python and TypeScript. The term "confidence" implied
+  calibration; "conviction" does not. When `screen_candidate` is absent (19 pts missing),
+  those components zero and the total renormalizes against the 81-pt computable base.
+- **P0-1: RAG escalation model ID** — `rag/config.py` corrected to `claude-sonnet-5-20251022`.
+
+**Open (not yet fixed):**
+1. **Qdrant ingest not idempotent** — `embed_and_upsert()` uses random UUIDs; fix is
+   deterministic SHA-based IDs. Post-rebuild collection: 23,380 AAPL chunks confirmed
+   (~20× expected due to character-not-token splitting + SGML container source).
+2. **PLD 10-K not ingested** — `data/raw/sec-edgar-filings/PLD/` exists but zero PLD chunks in Qdrant.
+3. **All 5 backtest metrics are hardcoded constants** (`_DEMO_METRICS`), not recomputed
+   at runtime. 13.9% CAGR / +2.1% alpha / 0.94 Sharpe / −27.1% max DD / 59.5% win rate
+   must not be cited as APM results.
+
+See `AUDIT_REPORT.md` for the full findings table, code locations, and fix guidance.
 
 ---
 

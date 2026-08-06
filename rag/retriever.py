@@ -251,7 +251,12 @@ class FinancialRetriever:
             pairs = [[query, c.text[:512]] for c in chunks]
             scores = self._cross_encoder.predict(pairs)
             ranked = sorted(zip(scores, chunks), key=lambda x: x[0], reverse=True)
-            return [c for _, c in ranked[:top_k]]
+            # Write cross-encoder score back so avg_score in retrieve_and_summarize
+            # reflects post-rerank quality, not stale dense similarity (P1-5 fix)
+            top = ranked[:top_k]
+            for ce_score, chunk in top:
+                chunk.score = float(ce_score)
+            return [c for _, c in top]
         except Exception as exc:
             log.debug("Re-ranking unavailable, falling back to dense scores: %s", exc)
             return sorted(chunks, key=lambda c: c.score, reverse=True)[:top_k]

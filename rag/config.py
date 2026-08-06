@@ -28,7 +28,7 @@ EMBEDDING_DIM_LOCAL: int = 768
 # Synthesis LLM — uses Anthropic (already a project dependency) by default
 SYNTHESIS_MODEL: str = os.getenv("RAG_SYNTHESIS_MODEL", "claude-haiku-4-5-20251001")
 # Escalation model for low-confidence retrievals (avg_score < ESCALATION_THRESHOLD)
-ESCALATION_MODEL: str = os.getenv("RAG_ESCALATION_MODEL", "claude-sonnet-5-20251101")
+ESCALATION_MODEL: str = os.getenv("RAG_ESCALATION_MODEL", "claude-sonnet-5")
 ESCALATION_THRESHOLD: float = float(os.getenv("RAG_ESCALATION_THRESHOLD", "0.55"))
 
 # Document types supported

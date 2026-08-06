@@ -75,7 +75,7 @@ class CycleAgent(Agent):
         rotation = self._rotation_direction(clock_phase)
 
         # Confidence: how cleanly does the data fit one quadrant?
-        fit_confidence = self._phase_fit_confidence(economy, clock_phase) - confidence_penalty
+        fit_confidence = max(0.0, self._phase_fit_confidence(economy, clock_phase) - confidence_penalty)
 
         data = CycleData(
             clock_phase=clock_phase,

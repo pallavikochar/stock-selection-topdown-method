@@ -54,16 +54,16 @@ class RecommendationAgent(Agent):
                 prob_weighted_target=val.prob_weighted_target,
                 expected_return_pct=val.expected_return_pct,
                 reward_to_risk=val.reward_to_risk,
-                confidence_numeric=round(total_conf, 1),
-                confidence_label=label,
-                confidence_breakdown=breakdown,
+                conviction_score=round(total_conf, 1),
+                conviction_label=label,
+                conviction_breakdown=breakdown,
                 replaces_ticker=replaces,
                 thesis=thesis,
                 scenario_table=val.scenario_valuations,
                 warnings=warnings,
             ))
 
-        ranked.sort(key=lambda r: r.confidence_numeric, reverse=True)
+        ranked.sort(key=lambda r: r.conviction_score, reverse=True)
 
         data = RecommendationsData(
             ranked=ranked,
@@ -75,7 +75,7 @@ class RecommendationAgent(Agent):
         n_buy  = sum(1 for r in ranked if r.action == Action.BUY)
         n_hold = sum(1 for r in ranked if r.action == Action.HOLD)
         n_sell = sum(1 for r in ranked if r.action == Action.SELL)
-        avg_confidence = sum(r.confidence_numeric for r in ranked) / len(ranked) if ranked else 0
+        avg_confidence = sum(r.conviction_score for r in ranked) / len(ranked) if ranked else 0
         rationale = (
             f"{len(ranked)} stocks | "
             f"Buy: {n_buy} | Hold: {n_hold} | Sell: {n_sell} | "
@@ -120,11 +120,14 @@ class RecommendationAgent(Agent):
         in_favored = sector in favored_sectors
         sector_score = w["sector_fit"]["weight"] * (1.0 if in_favored else 0.4)
 
-        # 3. Style/factor fit (15 pts)
+        # 3. Style/factor fit (15 pts) — zero and renormalize when screen data absent
         screen_candidate = next((c for c in context.screen.candidates if c.ticker == ticker), None)
-        style_score = w["style_factor_fit"]["weight"] * (
-            (0.7 if screen_candidate and screen_candidate.style_fit else 0.3)
-        )
+        if screen_candidate is None:
+            style_score = 0.0
+            renorm_factor = 100.0 / (100 - w["style_factor_fit"]["weight"] - w["technical_catalyst"]["weight"])
+        else:
+            style_score = w["style_factor_fit"]["weight"] * (0.7 if screen_candidate.style_fit else 0.3)
+            renorm_factor = 1.0
 
         # 4. Reward-to-risk (15 pts)
         rr = val.reward_to_risk
@@ -140,8 +143,9 @@ class RecommendationAgent(Agent):
         )
 
         # 7. Technical catalyst (4 pts)
-        tech_score = w["technical_catalyst"]["weight"] * (
-            1.0 if (screen_candidate and screen_candidate.technical_catalyst) else 0.3
+        tech_score = (
+            0.0 if screen_candidate is None
+            else w["technical_catalyst"]["weight"] * (1.0 if screen_candidate.technical_catalyst else 0.3)
         )
 
         # 8. Stock-picking regime (3 pts)
@@ -171,6 +175,7 @@ class RecommendationAgent(Agent):
             crowding_penalty=round(crowding_penalty, 1),
             terminal_g_warning_penalty=round(terminal_g_penalty, 1),
             theme_not_universal_penalty=round(theme_penalty, 1),
+            renormalization_factor=round(renorm_factor, 4),
         )
 
         return breakdown, breakdown.total

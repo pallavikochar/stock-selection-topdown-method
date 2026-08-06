@@ -145,7 +145,7 @@ class ReportAgent(Agent):
                 lines.append(
                     f"| **{r.ticker}** | {r.action.value} | ${r.current_price:.0f} | "
                     f"${r.prob_weighted_target:.0f} | {r.expected_return_pct:+.1f}% | "
-                    f"{r.reward_to_risk:.1f}x | {r.confidence_label.value} {r.confidence_numeric:.0f} | "
+                    f"{r.reward_to_risk:.1f}x | {r.conviction_label.value} {r.conviction_score:.0f} | "
                     f"{r.replaces_ticker or '—'} |"
                 )
             lines.append("")

@@ -89,5 +89,5 @@ def test_recommendation_confidence_in_range():
     outputs = _run_full_pipeline()
     rec_out = next(o for o in outputs if o.agent_name == "recommendations")
     for r in rec_out.data.get("ranked", []):
-        conf = r["confidence_numeric"]
-        assert 0 <= conf <= 100, f"{r['ticker']}: confidence {conf} out of range"
+        conf = r["conviction_score"]
+        assert 0 <= conf <= 100, f"{r['ticker']}: conviction_score {conf} out of range"

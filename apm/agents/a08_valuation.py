@@ -60,6 +60,9 @@ class ValuationAgent(Agent):
             raw_fund = fetch_fundamentals(ticker)
             if fund_data is None:
                 continue
+            if not raw_fund.get("market_cap") and not raw_fund.get("revenue_ttm"):
+                log.warning("%s: no fundamental data — skipping valuation", ticker)
+                continue
             val, warns = self._value_ticker(
                 ticker, raw_fund, fund_data, scenarios, risk_free
             )
@@ -99,20 +102,54 @@ class ValuationAgent(Agent):
         current_price = raw_fund.get("current_price", 0) or 0
         sector = raw_fund.get("sector", "Technology")
         life_cycle = fund_data.industry_life_cycle.value
-        wacc_premium = _va()["wacc_premium"].get(sector.replace(" ", "_"), 0.030)
         terminal_g_max = _terminal_g_map().get(life_cycle, self._defaults["terminal_g_mature"] / 100)
 
         scenario_vals: list[ScenarioValuation] = []
         warnings: list[str] = []
         prices: list[float] = []
 
+        # Company-specific base growth (YoY actual; analyst-consensus forward)
+        company_rev_growth_raw = raw_fund.get("revenue_growth_yoy") or 0.0
+        # Cap near-term hypergrowth at 60% — it never sustains full 5 years
+        company_rev_growth = min(abs(company_rev_growth_raw), 0.60) * (
+            1 if company_rev_growth_raw >= 0 else -1
+        )
+
+        # Forward EPS from analyst consensus — preferred over TTM/shares calc
+        forward_eps_raw = raw_fund.get("forward_eps")
+
+        shares = raw_fund.get("shares_outstanding", 0) or 1e9
+        tax_rate = self._defaults["tax_rate_pct"] / 100
+        sector_key = sector.replace(" ", "_")
+        sales_to_capital = _va()["sales_to_capital"].get(sector_key, 0.60)
+        reinv_cap = _va()["dcf"]["reinvestment_cap_pct"] / 100
+        revenue = raw_fund.get("revenue_ttm", 0) or 1e9
+        market_cap = raw_fund.get("market_cap", 0) or 1e10
+        debt = raw_fund.get("total_debt", 0) or 0
+        cash = raw_fund.get("cash", 0) or 0
+        beta = raw_fund.get("beta", 1.0) or 1.0
+        wacc_premium = _va()["wacc_premium"].get(sector_key, 0.030)
+        equity_premium = self._defaults["equity_risk_premium"] / 100
+
         for scenario in scenarios.scenarios:
             macro = scenario.macro
-            # Step 1: Revenue growth — respect cyclicality, go out full cycle
-            rev_growth = macro.revenue_growth_pct / 100
+            # Step 1: Revenue growth — blend company-specific growth with macro scenario
+            # macro scenario determines how quickly growth decelerates toward macro baseline
+            macro_growth = macro.revenue_growth_pct / 100
+            # Bull scenario: company growth sustained; bear: mean-reverts to macro baseline
+            scenario_blend = {
+                "expanding": 0.85,   # bull — mostly company's own growth
+                "stable":    0.60,   # base — moderate mean-reversion
+                "compressing": 0.30, # bear — compress hard toward macro
+            }.get(macro.market_multiple_path, 0.60)
+            raw_growth = company_rev_growth * scenario_blend + macro_growth * (1 - scenario_blend)
+            rev_growth = max(macro_growth, raw_growth) if raw_growth > 0 else raw_growth
 
             # Step 2: Operating margin — base margin adjusted for scenario inflation
-            base_margin = raw_fund.get("operating_margin") or 0.12
+            base_margin = raw_fund.get("operating_margin")
+            if base_margin is None:
+                log.warning("%s: operating_margin missing, defaulting to 12%%", ticker)
+                base_margin = 0.12
             if macro.margin_trajectory == "compressed":
                 margin = base_margin * 0.92
             elif macro.margin_trajectory == "recovering":
@@ -125,17 +162,8 @@ class ValuationAgent(Agent):
                 margin = base_margin
 
             # Step 3: FCFF = NOPAT - Reinvestment
-            revenue = raw_fund.get("revenue_ttm", 0) or 1e9
             ebit = revenue * margin
-            tax_rate = self._defaults["tax_rate_pct"] / 100
             nopat = ebit * (1 - tax_rate)
-            market_cap = raw_fund.get("market_cap", 0) or 1e10
-            debt = raw_fund.get("total_debt", 0) or 0
-            cash = raw_fund.get("cash", 0) or 0
-            # Use sector-specific book S/C ratio — avoids inflating reinvestment via EV
-            sector_key = sector.replace(" ", "_")
-            sales_to_capital = _va()["sales_to_capital"].get(sector_key, 0.60)
-            reinv_cap = _va()["dcf"]["reinvestment_cap_pct"] / 100
             reinvestment = min(
                 (revenue * abs(rev_growth)) / max(sales_to_capital, 0.1),
                 nopat * reinv_cap,
@@ -143,8 +171,6 @@ class ValuationAgent(Agent):
             fcff = nopat - reinvestment
 
             # Step 4: WACC
-            beta = raw_fund.get("beta", 1.0) or 1.0
-            equity_premium = self._defaults["equity_risk_premium"] / 100
             cost_of_equity = risk_free + beta * equity_premium
             cost_of_debt_after_tax = (risk_free + wacc_premium) * (1 - tax_rate)
             total_cap = market_cap + debt
@@ -170,26 +196,32 @@ class ValuationAgent(Agent):
             elif macro.market_multiple_path == "expanding":
                 multiple_adj = self._defaults["bull_multiple_adj"]
 
+            # Step 5b: Terminal value uses year-5 FCFF as base (not current FCFF)
+            fcff_year5 = fcff * (1 + rev_growth) ** 5
             if wacc <= terminal_g:
-                tv = fcff * _va()["dcf"]["tv_fallback_multiple"]
+                pv_tv = fcff_year5 * _va()["dcf"]["tv_fallback_multiple"] / (1 + wacc) ** 5
             else:
-                tv = (fcff * (1 + terminal_g)) / (wacc - terminal_g)
+                tv = fcff_year5 * (1 + terminal_g) / (wacc - terminal_g)
+                pv_tv = tv / (1 + wacc) ** 5
 
-            # Step 6: Discount back (simplified: assume FCFF is year-5 normalised)
-            discount_factor = (1 + wacc) ** 5
-            dcf_value_firm = (fcff * 3 + tv / discount_factor)  # 5yr simplified DCF
+            # Step 6: PV of 5-year growing FCFF stream + PV of terminal value
+            pv_stream = fcff * sum((1 + rev_growth) ** t / (1 + wacc) ** t for t in range(1, 6))
+            dcf_value_firm = pv_stream + pv_tv
             dcf_value_equity = (dcf_value_firm - debt + cash)
-            shares = raw_fund.get("shares_outstanding", 0) or 1e9
             dcf_per_share = max(1.0, dcf_value_equity / shares) if shares else 1.0
 
-            # Multiples: sector-median forward P/E (captures growth premium the market pays)
-            # Adjust for: (a) interest rates, (b) company life-cycle quality premium
+            # Multiples: sector-median forward P/E
+            # Prefer analyst-consensus forward EPS; fall back to TTM/shares * scenario growth
             base_pe = _va()["forward_pe"].get(sector_key, 18.0)
             rate_adj = max(0.7, 1.0 - (risk_free - 0.04) * _va()["rate_pe_sensitivity"])
             lc_adj = _va()["lifecycle_pe_adj"].get(life_cycle, 1.0)
             sector_pe = base_pe * rate_adj * multiple_adj * lc_adj
-            eps = raw_fund.get("net_income_ttm", 0) / shares if shares else 0
-            fwd_eps = eps * (1 + macro.earnings_growth_pct / 100)
+            if forward_eps_raw and forward_eps_raw > 0:
+                # Use analyst forward EPS directly — already a 1-year forward estimate
+                fwd_eps = forward_eps_raw * multiple_adj
+            else:
+                ttm_eps = raw_fund.get("net_income_ttm", 0) / shares if shares else 0
+                fwd_eps = ttm_eps * (1 + macro.earnings_growth_pct / 100)
             multiples_per_share = max(1.0, sector_pe * fwd_eps) if fwd_eps > 0 else 1.0
 
             # Sector-specific third valuation leg

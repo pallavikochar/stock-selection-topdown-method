@@ -2,78 +2,121 @@
 
 /* ── Tailwind v4 CSS-first theme ──────────────────────────────────────────── */
 @theme {
-  /* Fonts */
   --font-display: "Space Grotesk", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-mono:    "JetBrains Mono", monospace;
 
-  /* Navy palette — deep backgrounds */
-  --color-navy-950: oklch(9% 0.025 252);
-  --color-navy-900: oklch(13% 0.030 252);
-  --color-navy-800: oklch(18% 0.035 252);
-  --color-navy-700: oklch(24% 0.040 252);
-  --color-navy-600: oklch(30% 0.040 252);
-  --color-navy-500: oklch(40% 0.035 252);
+  /* Core palette — warm onyx/charcoal replacing cold navy-blue */
+  --color-navy-950: oklch(6.5%  0.006 58);   /* page background */
+  --color-navy-900: oklch(10%   0.008 58);   /* card base */
+  --color-navy-800: oklch(15%   0.009 58);   /* card surface / inputs */
+  --color-navy-700: oklch(22%   0.010 58);   /* borders */
+  --color-navy-600: oklch(37%   0.009 58);   /* muted / disabled text */
+  --color-navy-500: oklch(54%   0.008 58);   /* secondary text */
 
-  /* Signal colors — used sparingly */
-  --color-cyan-accent: oklch(82% 0.18 200);
-  --color-amber-accent: oklch(80% 0.16 60);
-  --color-green-signal: oklch(72% 0.18 145);
-  --color-red-signal: oklch(65% 0.20 25);
-  --color-purple-signal: oklch(68% 0.18 290);
+  /* Accent system — GOLD replaces cold cyan as primary */
+  --color-cyan-accent:   oklch(80% 0.163 55);   /* gold — primary interactive */
+  --color-amber-accent:  oklch(76% 0.167 38);   /* orange — running / hot */
+  --color-green-signal:  oklch(73% 0.188 145);  /* green — buy */
+  --color-red-signal:    oklch(64% 0.212 25);   /* red — sell */
+  --color-purple-signal: oklch(69% 0.185 290);  /* violet — style/factor */
 
-  /* Data colors for charts */
-  --color-chart-1: oklch(82% 0.18 200);
-  --color-chart-2: oklch(80% 0.16 60);
-  --color-chart-3: oklch(72% 0.18 145);
-  --color-chart-4: oklch(65% 0.20 25);
-  --color-chart-5: oklch(75% 0.16 290);
+  --color-chart-1: oklch(80% 0.163 55);
+  --color-chart-2: oklch(76% 0.167 38);
+  --color-chart-3: oklch(73% 0.188 145);
+  --color-chart-4: oklch(64% 0.212 25);
+  --color-chart-5: oklch(69% 0.185 290);
 }
 
-/* ── Base resets ──────────────────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
 html {
   font-family: var(--font-display);
   background-color: var(--color-navy-950);
-  color: oklch(90% 0.01 252);
+  color: oklch(90% 0.006 58);
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Monospace numerals ───────────────────────────────────────────────────── */
+/* Ambient depth — subtle gold radial at top, fades to nothing */
+body {
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% -10%, oklch(80% 0.163 55 / 0.06) 0%, transparent 70%);
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Fine dot grid overlay — replaces grain, gives structure */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, oklch(80% 0.163 55 / 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Tabular numerals ─────────────────────────────────────────────────────── */
 .tabular-nums {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Grain texture overlay ────────────────────────────────────────────────── */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.4;
+/* ── Confidence pills ─────────────────────────────────────────────────────── */
+.confidence-high   {
+  background: oklch(73% 0.188 145 / 0.12);
+  color:      oklch(73% 0.188 145);
+  border-color: oklch(73% 0.188 145 / 0.35);
+}
+.confidence-medium {
+  background: oklch(80% 0.163 55 / 0.12);
+  color:      oklch(80% 0.163 55);
+  border-color: oklch(80% 0.163 55 / 0.35);
+}
+.confidence-low {
+  background: oklch(64% 0.212 25 / 0.12);
+  color:      oklch(64% 0.212 25);
+  border-color: oklch(64% 0.212 25 / 0.35);
 }
 
-/* ── Funnel band hover ────────────────────────────────────────────────────── */
+/* ── Card elevation ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--color-navy-900);
+  border: 1px solid var(--color-navy-700);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 2px 8px oklch(0% 0 0 / 0.5),
+    0 1px 2px oklch(0% 0 0 / 0.4);
+}
+
+/* Card with gold left-border accent for featured sections */
+.card-accent {
+  border-left: 2px solid var(--color-cyan-accent);
+}
+
+/* ── Funnel band ──────────────────────────────────────────────────────────── */
 .funnel-band {
   transition: background-color 150ms ease, border-color 150ms ease;
   cursor: pointer;
 }
-
 .funnel-band:hover {
-  background-color: oklch(18% 0.035 252 / 0.8);
+  background-color: oklch(80% 0.163 55 / 0.04);
 }
 
-/* ── Confidence pills ─────────────────────────────────────────────────────── */
-.confidence-high  { background: oklch(72% 0.18 145 / 0.15); color: oklch(72% 0.18 145); border-color: oklch(72% 0.18 145 / 0.3); }
-.confidence-medium { background: oklch(80% 0.16 60 / 0.15); color: oklch(80% 0.16 60); border-color: oklch(80% 0.16 60 / 0.3); }
-.confidence-low   { background: oklch(65% 0.20 25 / 0.15); color: oklch(65% 0.20 25); border-color: oklch(65% 0.20 25 / 0.3); }
-
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar       { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(30% 0.04 252); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--color-navy-700); border-radius: 3px; }
+
+/* ── Section divider gradient ─────────────────────────────────────────────── */
+.section-rule {
+  height: 1px;
+  background: linear-gradient(90deg, var(--color-cyan-accent) 0%, oklch(80% 0.163 55 / 0.1) 40%, transparent 70%);
+}
+
+/* ── Gold glow for active elements ───────────────────────────────────────── */
+@keyframes gold-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+.gold-pulse { animation: gold-pulse 2s ease-in-out infinite; }

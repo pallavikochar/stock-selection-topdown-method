@@ -35,7 +35,7 @@ export function InvestmentClock({ phase }: Props) {
 
     // Background circle
     svg.append("circle").attr("cx", cx).attr("cy", cy).attr("r", r + 12)
-      .attr("fill", "oklch(13% 0.030 252)").attr("stroke", "oklch(24% 0.040 252)").attr("stroke-width", 1);
+      .attr("fill", "oklch(10% 0.008 58)").attr("stroke", "oklch(22% 0.010 58)").attr("stroke-width", 1);
 
     // Four quadrant arcs
     const quadrants = [
@@ -57,22 +57,22 @@ export function InvestmentClock({ phase }: Props) {
         .datum(q)
         .attr("d", arc)
         .attr("fill", isActive ? q.color.replace("20", "40") : q.color)
-        .attr("stroke", isActive ? q.color.replace("20", "80") : "oklch(24% 0.040 252)")
+        .attr("stroke", isActive ? q.color.replace("20", "80") : "oklch(22% 0.010 58)")
         .attr("stroke-width", isActive ? 1.5 : 0.5)
         .attr("transform", `translate(${cx},${cy})`);
     });
 
     // Axes
     svg.append("line").attr("x1", cx - r).attr("y1", cy).attr("x2", cx + r).attr("y2", cy)
-      .attr("stroke", "oklch(24% 0.040 252)").attr("stroke-width", 0.5);
+      .attr("stroke", "oklch(22% 0.010 58)").attr("stroke-width", 0.5);
     svg.append("line").attr("x1", cx).attr("y1", cy - r).attr("x2", cx).attr("y2", cy + r)
-      .attr("stroke", "oklch(24% 0.040 252)").attr("stroke-width", 0.5);
+      .attr("stroke", "oklch(22% 0.010 58)").attr("stroke-width", 0.5);
 
     // Axis labels
-    svg.append("text").text("Growth↑").attr("x", cx + r + 2).attr("y", cy - 4).attr("text-anchor", "start").style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
-    svg.append("text").text("Growth↓").attr("x", cx - r - 2).attr("y", cy - 4).attr("text-anchor", "end").style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
-    svg.append("text").text("Infl↑").attr("x", cx + 4).attr("y", cy - r + 10).style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
-    svg.append("text").text("Infl↓").attr("x", cx + 4).attr("y", cy + r - 4).style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
+    svg.append("text").text("Growth↑").attr("x", cx + r + 2).attr("y", cy - 4).attr("text-anchor", "start").style("font-size", "9px").style("fill", "oklch(42% 0.008 58)").style("font-family", "JetBrains Mono");
+    svg.append("text").text("Growth↓").attr("x", cx - r - 2).attr("y", cy - 4).attr("text-anchor", "end").style("font-size", "9px").style("fill", "oklch(42% 0.008 58)").style("font-family", "JetBrains Mono");
+    svg.append("text").text("Infl↑").attr("x", cx + 4).attr("y", cy - r + 10).style("font-size", "9px").style("fill", "oklch(42% 0.008 58)").style("font-family", "JetBrains Mono");
+    svg.append("text").text("Infl↓").attr("x", cx + 4).attr("y", cy + r - 4).style("font-size", "9px").style("fill", "oklch(42% 0.008 58)").style("font-family", "JetBrains Mono");
 
     // Phase labels
     const phaseLabels = [
@@ -96,10 +96,10 @@ export function InvestmentClock({ phase }: Props) {
 
     // Center circle
     svg.append("circle").attr("cx", cx).attr("cy", cy).attr("r", innerR)
-      .attr("fill", "oklch(9% 0.025 252)").attr("stroke", "oklch(30% 0.04 252)").attr("stroke-width", 1);
+      .attr("fill", "oklch(7% 0.006 58)").attr("stroke", "oklch(80% 0.163 55 / 0.4)").attr("stroke-width", 1);
     svg.append("text").text("APM").attr("x", cx).attr("y", cy + 1)
       .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-      .style("font-size", "9px").style("fill", "oklch(40% 0.04 252)").style("font-family", "JetBrains Mono");
+      .style("font-size", "9px").style("fill", "oklch(80% 0.163 55)").style("font-family", "JetBrains Mono");
 
   }, [phase]);
 

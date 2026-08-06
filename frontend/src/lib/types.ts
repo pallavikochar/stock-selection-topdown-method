@@ -93,6 +93,7 @@ export interface ConfidenceBreakdown {
   crowding_penalty: number;
   terminal_g_warning_penalty: number;
   theme_not_universal_penalty: number;
+  renormalization_factor?: number;
 }
 
 export interface StockRecommendation {
@@ -102,9 +103,9 @@ export interface StockRecommendation {
   prob_weighted_target: number;
   expected_return_pct: number;
   reward_to_risk: number;
-  confidence_numeric: number;
-  confidence_label: ConfidenceLabel;
-  confidence_breakdown: ConfidenceBreakdown;
+  conviction_score: number;
+  conviction_label: ConfidenceLabel;
+  conviction_breakdown: ConfidenceBreakdown;
   replaces_ticker: string | null;
   thesis: string;
   scenario_table: ScenarioValuation[];
@@ -234,11 +235,7 @@ export interface TickerAnalysis {
     narrative_quality: string;
     key_risks: string[];
     qualitative_score: number;
-    porter: {
-      overall_score: number;
-      market_share_outlook: string;
-      margin_outlook: string;
-    };
+    porter: PorterForces;
   } | null;
 }
 
@@ -266,6 +263,49 @@ export interface LLMAnalysisData {
   analyses: Record<string, LLMStockAnalysis>;
   model_used: string;
   verification_method: string;
+}
+
+// ── Fundamental / Porter (a07) ────────────────────────────────────────────
+export interface PorterForces {
+  threat_of_entry: number;
+  threat_of_substitutes: number;
+  buyer_power: number;
+  supplier_power: number;
+  competitive_rivalry: number;
+  market_share_outlook: string;
+  margin_outlook: string;
+  overall_score: number;
+}
+
+export interface FundamentalProfile {
+  ticker: string;
+  industry_life_cycle: string;
+  business_model_type: string;
+  narrative_quality: string;
+  porter: PorterForces;
+  revenue_growth_driver: string;
+  margin_driver: string;
+  reinvestment_efficiency: string;
+  key_risks: string[];
+  qualitative_score: number;
+}
+
+// ── Style & Factor (a05) ───────────────────────────────────────────────────
+export interface StyleFactor {
+  factor_name: string;
+  classification: string;
+  rationale: string;
+  weight: number;
+  cross_universe_holds: boolean;
+}
+
+export interface StyleData {
+  favored_factors: StyleFactor[];
+  avoid_factors: string[];
+  favored_size_style_box: string;
+  value_vs_growth_read: string;
+  dividend_yield_warning: string;
+  phase: string;
 }
 
 // ── RAG ────────────────────────────────────────────────────────────────────

@@ -4,9 +4,10 @@ import { ConfidenceBar } from "./ConfidenceBar";
 import { LLMAnalysis } from "./LLMAnalysis";
 import { AnalystPanel } from "./AnalystPanel";
 import { FinancialsPanel } from "./FinancialsPanel";
+import { PorterRadar } from "./PorterRadar";
 import type {
   StockRecommendation, ConfidenceLabel, Action,
-  LLMAnalysisData, AnalystConsensus, SECFilingsData,
+  LLMAnalysisData, AnalystConsensus, SECFilingsData, FundamentalProfile,
 } from "../lib/types";
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
   llmAnalysis?: LLMAnalysisData;
   analystData?: Record<string, AnalystConsensus>;
   secFilings?: Record<string, SECFilingsData>;
+  fundamentalData?: Record<string, FundamentalProfile>;
 }
 
 const ACTION_STYLE: Record<Action, string> = {
@@ -28,13 +30,13 @@ const CONF_STYLE: Record<ConfidenceLabel, string> = {
   Low:    "confidence-low",
 };
 
-type DrawerTab = "thesis" | "scenarios" | "analyst" | "financials" | "ai";
+type DrawerTab = "thesis" | "fundamentals" | "scenarios" | "analyst" | "financials" | "ai";
 
 function fmt(n: number, decimals = 0) {
   return n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-export function RecommendationsTable({ recommendations, llmAnalysis, analystData, secFilings }: Props) {
+export function RecommendationsTable({ recommendations, llmAnalysis, analystData, secFilings, fundamentalData }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Record<string, DrawerTab>>({});
 
@@ -65,6 +67,7 @@ export function RecommendationsTable({ recommendations, llmAnalysis, analystData
         const hasAnalyst = !!analystData?.[rec.ticker];
         const hasFilings = !!secFilings?.[rec.ticker];
         const hasLLM = !!llmAnalysis?.analyses[rec.ticker];
+        const hasFundamental = !!fundamentalData?.[rec.ticker];
 
         return (
           <div key={rec.ticker}>
@@ -112,8 +115,8 @@ export function RecommendationsTable({ recommendations, llmAnalysis, analystData
               </span>
 
               <div className="self-center flex justify-end">
-                <span className={`text-xs font-mono px-2 py-0.5 rounded border tabular-nums ${CONF_STYLE[rec.confidence_label]}`}>
-                  {rec.confidence_label} {rec.confidence_numeric.toFixed(0)}
+                <span className={`text-xs font-mono px-2 py-0.5 rounded border tabular-nums ${CONF_STYLE[rec.conviction_label]}`}>
+                  {rec.conviction_label} {rec.conviction_score.toFixed(0)}
                 </span>
               </div>
             </motion.div>
@@ -131,12 +134,14 @@ export function RecommendationsTable({ recommendations, llmAnalysis, analystData
                   <div className="mx-2 mb-2 bg-navy-800/50 rounded-xl border border-navy-700/50 overflow-hidden">
                     {/* Tab bar */}
                     <div className="flex border-b border-navy-700/50 bg-navy-900/30">
-                      {(["thesis", "scenarios", "analyst", "financials", "ai"] as DrawerTab[]).map(t => {
+                      {(["thesis", "fundamentals", "scenarios", "analyst", "financials", "ai"] as DrawerTab[]).map(t => {
+                        if (t === "fundamentals" && !hasFundamental) return null;
                         if (t === "analyst" && !hasAnalyst) return null;
                         if (t === "financials" && !hasFilings) return null;
                         if (t === "ai" && !hasLLM) return null;
                         const labels: Record<DrawerTab, string> = {
                           thesis: "Thesis",
+                          fundamentals: "Porter / Fundamentals",
                           scenarios: "Scenarios",
                           analyst: "Analyst",
                           financials: "Financials",
@@ -177,10 +182,88 @@ export function RecommendationsTable({ recommendations, llmAnalysis, analystData
                           )}
                           <div>
                             <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-3">Confidence Breakdown</h4>
-                            <ConfidenceBar breakdown={rec.confidence_breakdown} total={rec.confidence_numeric} />
+                            <ConfidenceBar breakdown={rec.conviction_breakdown} total={rec.conviction_score} />
                           </div>
                         </div>
                       )}
+
+                      {/* Fundamentals / Porter tab */}
+                      {tab === "fundamentals" && hasFundamental && (() => {
+                        const fund = fundamentalData![rec.ticker];
+                        return (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Left: Porter radar */}
+                            <div>
+                              <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-4">
+                                Porter's Five Forces
+                              </h4>
+                              <PorterRadar porter={fund.porter} size={220} />
+                            </div>
+
+                            {/* Right: Business profile */}
+                            <div className="space-y-4">
+                              <div>
+                                <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-2">
+                                  Business Profile
+                                </h4>
+                                <div className="space-y-1.5">
+                                  <div className="flex gap-2 text-xs">
+                                    <span className="text-navy-500 w-28 shrink-0">Life Cycle</span>
+                                    <span className="text-white">{fund.industry_life_cycle}</span>
+                                  </div>
+                                  <div className="flex gap-2 text-xs">
+                                    <span className="text-navy-500 w-28 shrink-0">Model</span>
+                                    <span className="text-white">{fund.business_model_type}</span>
+                                  </div>
+                                  <div className="flex gap-2 text-xs">
+                                    <span className="text-navy-500 w-28 shrink-0">Story</span>
+                                    <span className="text-navy-300 leading-relaxed">{fund.narrative_quality}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div>
+                                <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-2">
+                                  Value Drivers
+                                </h4>
+                                <div className="space-y-2">
+                                  {fund.revenue_growth_driver && (
+                                    <div>
+                                      <p className="text-[10px] text-navy-600 uppercase tracking-widest">Revenue</p>
+                                      <p className="text-xs text-navy-300 leading-relaxed">{fund.revenue_growth_driver}</p>
+                                    </div>
+                                  )}
+                                  {fund.margin_driver && (
+                                    <div>
+                                      <p className="text-[10px] text-navy-600 uppercase tracking-widest">Margins</p>
+                                      <p className="text-xs text-navy-300 leading-relaxed">{fund.margin_driver}</p>
+                                    </div>
+                                  )}
+                                  {fund.reinvestment_efficiency && (
+                                    <div>
+                                      <p className="text-[10px] text-navy-600 uppercase tracking-widest">Reinvestment</p>
+                                      <p className="text-xs text-navy-300 leading-relaxed">{fund.reinvestment_efficiency}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {fund.key_risks.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-600 text-navy-500 uppercase tracking-widest mb-2">Key Risks</h4>
+                                  <div className="space-y-1">
+                                    {fund.key_risks.map((r, ri) => (
+                                      <div key={ri} className="flex gap-2 text-xs text-navy-400">
+                                        <span className="text-navy-600 shrink-0">·</span><span>{r}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Scenarios tab */}
                       {tab === "scenarios" && (
