@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from apm.core.agent import Agent, AgentOutput, Context, EconomyData
+from apm.core.agent import Agent, AgentHealthRecord, AgentOutput, Context, EconomyData, InputStatus
 from apm.core.types import ConfidenceLabel, Direction, GrowthLevel, InflationLevel
 from apm.data.fetchers import get_macro_snapshot
 from apm.utils.config import get_economic_view
@@ -146,6 +146,17 @@ class EconomyAgent(Agent):
             doc_type="fed_minutes",
         )
 
+        # Build AgentHealthRecord — surfaces any hardcoded-default substitutions
+        _src = "demo_cache" if snap.get("ism_new_orders") is not None else "hardcoded_default"
+        health_inputs = [
+            InputStatus(field=k, source="demo_cache" if snap.get(k) is not None else "hardcoded_default",
+                        value_preview=str(snap.get(k, _DEFAULTS.get(k, "?")))[:40])
+            for k in ["ten_year_yield_pct", "fed_funds_pct", "yield_curve_2s10s_bps",
+                       "wti_crude_usd", "ism_prices_paid", "conference_board_lei_yoy_pct",
+                       "ism_new_orders", "vix", "michigan_sentiment", "baa_credit_spread_pct"]
+        ]
+        health = self._make_health(self.name, run_id, health_inputs)
+
         return AgentOutput(
             agent_name=self.name,
             run_id=run_id,
@@ -161,6 +172,7 @@ class EconomyAgent(Agent):
                 "cmi_methodology": "z-score diffusion across Growth(30%), Liquidity(25%), Inflation(25%), Sentiment(20%)",
                 **({"rag_fed_context": rag} if rag else {}),
             },
+            health=health,
         )
 
     def _compute_cmi(self, snap: dict) -> tuple[float, str]:

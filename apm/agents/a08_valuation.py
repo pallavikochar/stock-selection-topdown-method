@@ -25,6 +25,50 @@ def _va() -> dict:
     return get_valuation_assumptions()
 
 
+# Sector-average operating margins used when yfinance doesn't provide one
+_SECTOR_MARGIN_DEFAULTS: dict[str, float] = {
+    "Technology": 0.22,
+    "Communication_Services": 0.20,
+    "Health_Care": 0.18,
+    "Financials": 0.28,     # net interest margin proxy; not directly comparable
+    "Energy": 0.13,
+    "Materials": 0.11,
+    "Industrials": 0.12,
+    "Consumer_Discretionary": 0.10,
+    "Consumer_Staples": 0.10,
+    "Utilities": 0.15,
+    "Real_Estate": 0.25,
+}
+
+
+def _parse_guidance_adjustment(text: str) -> float:
+    """
+    Extract a bounded ±2% rev_growth adjustment from management guidance text.
+    Uses keyword frequency as a lightweight sentiment signal — no extra LLM call.
+    """
+    t = text.lower()
+    pos = sum(t.count(w) for w in [
+        "raised", "increased guidance", "exceeded", "beat consensus", "accelerat",
+        "strong demand", "robust", "above expectations", "raised outlook",
+        "outperform", "ahead of", "record revenue",
+    ])
+    neg = sum(t.count(w) for w in [
+        "lowered", "cut guidance", "miss", "below expectations", "headwinds",
+        "challenging", "decelerat", "soften", "reduced guidance", "below forecast",
+        "shortfall", "cautious",
+    ])
+    net = pos - neg
+    if net >= 2:
+        return 0.02
+    if net == 1:
+        return 0.01
+    if net <= -2:
+        return -0.02
+    if net == -1:
+        return -0.01
+    return 0.0
+
+
 # Perpetuity growth rate bounds — read from valuation_defaults.json
 def _terminal_g_map() -> dict[str, float]:
     d = get_valuation_defaults()
@@ -118,6 +162,20 @@ class ValuationAgent(Agent):
         # Forward EPS from analyst consensus — preferred over TTM/shares calc
         forward_eps_raw = raw_fund.get("forward_eps")
 
+        # RAG: retrieve management guidance before the scenario loop so the
+        # directional adjustment can be applied to rev_growth in each scenario
+        from apm.agents.a16_research import _rag_context
+        rag_guidance = _rag_context(
+            f"What revenue guidance did management give for {ticker}?",
+            ticker=ticker,
+        )
+        rag_adj = _parse_guidance_adjustment(rag_guidance) if rag_guidance else 0.0
+        if rag_guidance:
+            adj_str = f"{rag_adj:+.0%}" if rag_adj != 0.0 else "neutral (no adjustment)"
+            warnings.append(
+                f"RAG guidance [{ticker}] → {adj_str}: {rag_guidance[:150]}"
+            )
+
         shares = raw_fund.get("shares_outstanding", 0) or 1e9
         tax_rate = self._defaults["tax_rate_pct"] / 100
         sector_key = sector.replace(" ", "_")
@@ -144,12 +202,22 @@ class ValuationAgent(Agent):
             }.get(macro.market_multiple_path, 0.60)
             raw_growth = company_rev_growth * scenario_blend + macro_growth * (1 - scenario_blend)
             rev_growth = max(macro_growth, raw_growth) if raw_growth > 0 else raw_growth
+            # Apply bounded RAG guidance adjustment (±2% max; already logged above)
+            rev_growth = max(-0.30, min(0.80, rev_growth + rag_adj))
 
             # Step 2: Operating margin — base margin adjusted for scenario inflation
             base_margin = raw_fund.get("operating_margin")
             if base_margin is None:
-                log.warning("%s: operating_margin missing, defaulting to 12%%", ticker)
-                base_margin = 0.12
+                fallback = _SECTOR_MARGIN_DEFAULTS.get(sector_key, 0.12)
+                log.warning(
+                    "%s: operating_margin missing — using sector default %.0f%% (%s)",
+                    ticker, fallback * 100, sector,
+                )
+                warnings.append(
+                    f"{ticker}: operating_margin not available; "
+                    f"using sector average {fallback:.0%} for {sector}"
+                )
+                base_margin = fallback
             if macro.margin_trajectory == "compressed":
                 margin = base_margin * 0.92
             elif macro.margin_trajectory == "recovering":
@@ -271,15 +339,6 @@ class ValuationAgent(Agent):
         stock_ev_ebit, peer_median, cross_sectional_discount = sector_cross_sectional(
             raw_fund, sector
         )
-
-        # Optionally enrich with RAG-retrieved management revenue guidance
-        from apm.agents.a16_research import _rag_context
-        rag_guidance = _rag_context(
-            f"What revenue guidance did management give for {ticker}?",
-            ticker=ticker,
-        )
-        if rag_guidance:
-            warnings.append(f"RAG guidance [{ticker}]: {rag_guidance[:200]}")
 
         return ValuationData(
             ticker=ticker,

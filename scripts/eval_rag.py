@@ -42,8 +42,15 @@ def precision_at_k(chunks: list, keywords: list[str], k: int = 5) -> float:
     return hits / min(k, len(chunks)) if chunks else 0.0
 
 
-def groundedness_score(answer: str, chunks: list) -> float:
-    """Fraction of retrieved chunk texts that have a substring overlap with the answer (proxy)."""
+def word_overlap_proxy(answer: str, chunks: list) -> float:
+    """
+    Word-overlap proxy for answer grounding.
+    NOTE: This is NOT RAGAS faithfulness. RAGAS uses an NLI/LLM judge to check
+    whether each answer claim is supported by context. This metric measures
+    lexical overlap and rewards verbatim copying over paraphrasing.
+    Cite as 'word-overlap proxy (not RAGAS)' — never compare directly to
+    published RAGAS benchmarks.
+    """
     if not answer or not chunks:
         return 0.0
     answer_words = set(answer.lower().split())
@@ -63,8 +70,8 @@ def main() -> None:
     from rag.retriever import FinancialRetriever
     r = FinancialRetriever()
 
-    print("RAG Evaluation — precision@5 + groundedness\n")
-    print(f"{'Query':<55} {'P@5':>5}  {'Grnd':>5}  {'Chunks':>6}")
+    print("RAG Evaluation — precision@5 + word-overlap proxy (not RAGAS)\n")
+    print(f"{'Query':<55} {'P@5':>5}  {'Ovlp':>5}  {'Chunks':>6}")
     print("─" * 80)
 
     p_scores, g_scores = [], []
@@ -73,7 +80,7 @@ def main() -> None:
             result = r.retrieve_and_summarize(query, ticker=ticker)
             chunks = result["sources"]
             p = precision_at_k(chunks, keywords)
-            g = groundedness_score(result["answer"], chunks)
+            g = word_overlap_proxy(result["answer"], chunks)
             p_scores.append(p)
             g_scores.append(g)
             label = query[:53]
@@ -84,7 +91,20 @@ def main() -> None:
     print("─" * 80)
     avg_p = sum(p_scores) / len(p_scores) if p_scores else 0
     avg_g = sum(g_scores) / len(g_scores) if g_scores else 0
+    n = len(p_scores)
+    # Wilson score 95% CI for precision@5
+    import math
+    z = 1.96
+    if n > 0:
+        centre = (avg_p + z**2 / (2 * n)) / (1 + z**2 / n)
+        half = z * math.sqrt(avg_p * (1 - avg_p) / n + z**2 / (4 * n**2)) / (1 + z**2 / n)
+        ci_lo, ci_hi = max(0.0, centre - half), min(1.0, centre + half)
+        ci_str = f"95% CI [{ci_lo:.0%}, {ci_hi:.0%}]"
+    else:
+        ci_str = "n/a"
     print(f"{'AVERAGE':<55} {avg_p:>5.0%}  {avg_g:>5.2f}")
+    print(f"  precision@5: {avg_p:.0%}  {ci_str}  (n={n})")
+    print(f"  word-overlap proxy: {avg_g:.2f}  [NOT comparable to RAGAS faithfulness]")
     print()
 
     # Persist results
@@ -92,8 +112,11 @@ def main() -> None:
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps({
         "precision_at_5": round(avg_p, 3),
-        "avg_groundedness": round(avg_g, 3),
-        "n_queries": len(p_scores),
+        "precision_at_5_ci_95_lo": round(ci_lo if n > 0 else 0, 3),
+        "precision_at_5_ci_95_hi": round(ci_hi if n > 0 else 0, 3),
+        "avg_word_overlap_proxy": round(avg_g, 3),
+        "note_word_overlap": "word-overlap proxy only; not comparable to RAGAS faithfulness",
+        "n_queries": n,
     }, indent=2))
     print(f"Results saved → {out}")
 

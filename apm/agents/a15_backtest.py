@@ -5,23 +5,35 @@ Agent 15 — BacktestAgent
 Strategy: At each monthly rebalance, rotate into stocks from the regime-favored
 sectors within the demo universe. Tracks returns vs SPY benchmark.
 
-Live: downloads price data via yfinance (slow ~30s first time; cached after).
-Demo: pre-computed results (2014-01 through 2024-06) based on actual prices.
+Demo mode: loads a pre-committed CSV fixture (apm/data/demo_cache/backtest_prices.csv)
+of monthly adjusted-close prices and computes all metrics at runtime — numbers
+are real, deterministic, and offline-capable.
 
-Metrics reported: CAGR, Alpha, Beta, Sharpe, Sortino, Max Drawdown,
-Calmar, Win Rate (months outperforming), annual return table.
+Live mode: downloads fresh monthly prices via yfinance and recomputes.
+
+Metrics: CAGR, Alpha (Jensen's vs SPY), Beta, Sharpe, Sortino, Max Drawdown,
+Calmar, Win Rate (months outperforming SPY), annual return table.
+
+Risk-free rate: piecewise historical approximation (~1.5% ann. 2014-2021,
+~4.5% ann. 2022-2024); avoids the bias of applying current rates to the
+full historical period.
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
+
+import numpy as np
+import pandas as pd
 
 from apm.core.agent import Agent, AgentOutput, AnnualReturn, BacktestData, BacktestMetrics, Context
 
 log = logging.getLogger(__name__)
 
-# Regime periods (start-inclusive, end-inclusive, YYYYMM format)
+# ── Regime classification ─────────────────────────────────────────────────────
+
 _REGIME_PERIODS: list[tuple[str, str, str]] = [
     ("201401", "201506", "REFLATION"),    # post-GFC recovery, low inflation
     ("201507", "201606", "DEFLATION"),    # China slowdown, commodities crash
@@ -31,9 +43,13 @@ _REGIME_PERIODS: list[tuple[str, str, str]] = [
     ("202004", "202112", "REFLATION"),    # massive stimulus, reopening
     ("202201", "202212", "STAGFLATION"),  # 40yr-high inflation + rate hikes
     ("202301", "202406", "REFLATION"),    # soft landing, AI boom
+    # Extended through current date using pipeline cycle classification (demo: STAGFLATION)
+    # Real-world classification: Fed cutting cycle + AI investment boom = REFLATION
+    ("202407", "202612", "REFLATION"),    # Fed easing, AI capex, soft landing continues
+    ("202701", "202912", "REFLATION"),    # placeholder; update from a02 cycle output
 ]
 
-# Sector rotation portfolios per regime (from our 8 demo tickers)
+# Sector rotation portfolios per regime (from the 9-ticker demo universe)
 _REGIME_PORTFOLIO: dict[str, list[str]] = {
     "REFLATION":   ["MSFT", "FCX", "JPM", "KO"],
     "INFLATION":   ["XOM", "CVX", "JPM", "FCX"],
@@ -41,36 +57,17 @@ _REGIME_PORTFOLIO: dict[str, list[str]] = {
     "DEFLATION":   ["KO", "ABBV", "MSFT", "JPM"],
 }
 
-# Pre-computed demo results (actual historical returns derived from yfinance data)
-_DEMO_ANNUAL: list[dict[str, Any]] = [
-    {"year": 2014, "strategy_pct": 14.2, "benchmark_pct": 13.5, "excess_pct":  0.7, "regime": "REFLATION"},
-    {"year": 2015, "strategy_pct": -2.1, "benchmark_pct":  1.4, "excess_pct": -3.5, "regime": "DEFLATION"},
-    {"year": 2016, "strategy_pct": 12.8, "benchmark_pct": 12.0, "excess_pct":  0.8, "regime": "INFLATION"},
-    {"year": 2017, "strategy_pct": 21.9, "benchmark_pct": 21.8, "excess_pct":  0.1, "regime": "INFLATION"},
-    {"year": 2018, "strategy_pct": -6.4, "benchmark_pct": -4.4, "excess_pct": -2.0, "regime": "INFLATION"},
-    {"year": 2019, "strategy_pct": 26.5, "benchmark_pct": 31.5, "excess_pct": -5.0, "regime": "STAGFLATION"},
-    {"year": 2020, "strategy_pct": 19.2, "benchmark_pct": 18.4, "excess_pct":  0.8, "regime": "REFLATION"},
-    {"year": 2021, "strategy_pct": 28.1, "benchmark_pct": 28.7, "excess_pct": -0.6, "regime": "REFLATION"},
-    {"year": 2022, "strategy_pct": -5.8, "benchmark_pct":-18.1, "excess_pct": 12.3, "regime": "STAGFLATION"},
-    {"year": 2023, "strategy_pct": 27.2, "benchmark_pct": 26.3, "excess_pct":  0.9, "regime": "REFLATION"},
-    {"year": 2024, "strategy_pct": 12.8, "benchmark_pct": 14.2, "excess_pct": -1.4, "regime": "REFLATION"},
-]
+# Piecewise risk-free rate (annualized, approximate Fed Funds / T-bill)
+# Split 2021/2022 to capture the rate-hike regime shift
+def _rf_for_month(ym: str) -> float:
+    """Approximate annualized risk-free rate for a given YYYYMM period."""
+    if ym >= "202201":
+        return 0.045   # ~4.5% during 2022-2024 rate-hike + hold cycle
+    return 0.015       # ~1.5% average during 2014-2021 ZIRP era
 
-_DEMO_METRICS = BacktestMetrics(
-    cagr_pct=13.9,
-    benchmark_cagr_pct=12.8,
-    alpha_pct=2.1,
-    beta=0.87,
-    sharpe_ratio=0.94,
-    sortino_ratio=1.41,
-    max_drawdown_pct=-27.1,
-    calmar_ratio=0.51,
-    win_rate_pct=59.5,
-    backtest_start="2014-01-01",
-    backtest_end="2024-06-30",
-    total_months=126,
-    outperformance_months=75,
-)
+# ── Fixture path ──────────────────────────────────────────────────────────────
+
+_FIXTURE = Path(__file__).parent.parent / "data/demo_cache/backtest_prices.csv"
 
 
 class BacktestAgent(Agent):
@@ -83,7 +80,7 @@ class BacktestAgent(Agent):
             try:
                 data = self._run_live()
             except Exception as exc:
-                log.warning("Live backtest failed (%s) — returning demo results", exc)
+                log.warning("Live backtest failed (%s) — falling back to demo fixture", exc)
                 data = self._run_demo()
 
         context.backtest = data
@@ -92,7 +89,8 @@ class BacktestAgent(Agent):
             f"10yr backtest ({m.backtest_start[:4]}–{m.backtest_end[:4]}) | "
             f"Strategy CAGR {m.cagr_pct:.1f}% vs SPY {m.benchmark_cagr_pct:.1f}% | "
             f"Alpha {m.alpha_pct:+.1f}% | Sharpe {m.sharpe_ratio:.2f} | "
-            f"Max Drawdown {m.max_drawdown_pct:.1f}% | Win Rate {m.win_rate_pct:.0f}%"
+            f"Max Drawdown {m.max_drawdown_pct:.1f}% | Win Rate {m.win_rate_pct:.0f}% | "
+            f"source={data.data_source}"
         )
 
         return AgentOutput(
@@ -103,100 +101,138 @@ class BacktestAgent(Agent):
             confidence_label=self._confidence_label(80.0),
             rationale=rationale,
             data=data.model_dump(),
-            warnings=["Backtest uses survivorship-bias-free demo universe; past performance ≠ future results"],
+            warnings=[
+                "Universe: 8 large-cap tickers (XOM, CVX, FCX, JPM, ABBV, MPC, MSFT, KO) — "
+                "survivorship-bias-present fixed universe; does not model delistings or bankruptcies",
+                "Regime classification uses hindsight labels — real-time lag of 1–3 months not modeled",
+                "Zero transaction costs and slippage modeled",
+            ],
             provenance={
-                "benchmark": "SPY (S&P 500 ETF)",
+                "benchmark": "SPY (S&P 500 ETF, total return, auto-adjusted)",
                 "strategy": "Investment Clock sector rotation — monthly equal-weight rebalance",
-                "universe": "8 deep-dive tickers (XOM, CVX, FCX, JPM, ABBV, MPC, MSFT, KO)",
+                "universe": "8 large-cap tickers, fixed (not survivorship-bias-free)",
                 "regime_source": "Merrill Lynch Investment Clock (historical phase classification)",
-                "risk_free_rate": "4.5% annualized (10yr average Fed Funds proxy)",
+                "risk_free_rate": "piecewise: ~1.5% ann. 2014-2021, ~4.5% ann. 2022-2024",
+                "data_source": data.data_source,
+                "computed": str(data.computed),
             },
         )
 
-    # ── Demo path ─────────────────────────────────────────────────────────────
+    # ── Demo path (fixture) ───────────────────────────────────────────────────
 
     def _run_demo(self) -> BacktestData:
-        annual = [AnnualReturn(**a) for a in _DEMO_ANNUAL]
-        return BacktestData(
-            strategy_name="Investment Clock Sector Rotation",
-            metrics=_DEMO_METRICS,
-            annual_returns=annual,
-            top_contributors=["XOM +2022", "MPC +2022", "CVX +2022", "MSFT +2021", "FCX +2021"],
-            worst_contributors=["XOM -2015", "CVX -2015", "FCX -2015", "JPM -2022"],
-            methodology=(
-                "Monthly rebalancing into equal-weight basket from regime-favored sectors. "
-                "STAGFLATION → Energy/Staples (XOM, CVX, MPC, KO); "
-                "INFLATION → Energy/Financials (XOM, CVX, JPM, FCX); "
-                "REFLATION → Tech/Materials/Financials (MSFT, FCX, JPM, KO); "
-                "DEFLATION → Defensives (KO, ABBV, MSFT, JPM). "
-                "Benchmark: SPY total return."
-            ),
+        if not _FIXTURE.exists():
+            raise RuntimeError(
+                f"Backtest fixture not found at {_FIXTURE}. "
+                "Run: python -m apm.scripts.fetch_backtest_fixture"
+            )
+        prices = pd.read_csv(_FIXTURE, index_col="date")
+        # Ensure Ticker is the column level name
+        prices.columns.name = "Ticker"
+        log.info("Backtest: loaded fixture %d months from %s", len(prices), _FIXTURE.name)
+        return self._compute_from_prices(
+            prices,
+            data_source=f"fixture:{_FIXTURE.name} ({len(prices)} months, auto_adjust=True)",
         )
 
     # ── Live path ─────────────────────────────────────────────────────────────
 
     def _run_live(self) -> BacktestData:
-        import numpy as np
-        import pandas as pd
         import yfinance as yf
-
         tickers = ["SPY", "XOM", "CVX", "FCX", "JPM", "ABBV", "MPC", "MSFT", "KO"]
-        log.info("Downloading 10yr price history for backtest…")
+        log.info("Downloading 10yr monthly prices for live backtest…")
         raw = yf.download(tickers, period="10y", interval="1mo", auto_adjust=True, progress=False)
         prices = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw
-        returns = prices.pct_change().dropna()
+        prices = prices.dropna(subset=["SPY"])
+        return self._compute_from_prices(
+            prices,
+            data_source=f"yfinance live ({len(prices)} months, auto_adjust=True)",
+        )
 
+    # ── Shared computation ────────────────────────────────────────────────────
+
+    def _compute_from_prices(self, prices: pd.DataFrame, data_source: str) -> BacktestData:
+        # Normalise index to DatetimeIndex regardless of CSV vs yfinance source
+        if not isinstance(prices.index, pd.DatetimeIndex):
+            prices.index = pd.to_datetime(prices.index)
+
+        returns = prices.pct_change().dropna()
         spy_ret = returns["SPY"]
+
         strategy_monthly: list[float] = []
         dates: list[Any] = []
 
-        for date in returns.index:
-            regime = self._regime_for(date)
+        for date_idx in returns.index:
+            ym = f"{date_idx.year:04d}{date_idx.month:02d}"
+            ts = date_idx
+
+            regime = self._regime_for(ym)
             portfolio = _REGIME_PORTFOLIO.get(regime, ["SPY"])
-            valid = [t for t in portfolio if t in returns.columns and not pd.isna(returns.loc[date, t])]
-            port_ret = float(returns.loc[date, valid].mean()) if valid else float(spy_ret.loc[date])
+            valid = [t for t in portfolio if t in returns.columns and not pd.isna(returns.at[date_idx, t])]
+            port_ret = float(returns.loc[date_idx, valid].mean()) if valid else float(spy_ret.at[date_idx])
             strategy_monthly.append(port_ret)
-            dates.append(date)
+            dates.append(ts)
 
         strat = pd.Series(strategy_monthly, index=returns.index)
         bench = spy_ret
 
-        rf_m = 0.045 / 12
         n = len(strat)
+
+        # Piecewise monthly risk-free rate series
+        rf_series = pd.Series(
+            [_rf_for_month(
+                i.replace("-", "")[:6] if isinstance(i, str) else f"{i.year:04d}{i.month:02d}"
+            ) / 12 for i in strat.index],
+            index=strat.index,
+        )
+        rf_m = rf_series.mean()  # for Sharpe / Sortino (time-average)
+
+        # CAGR
         cagr = float((1 + strat).prod() ** (12 / n) - 1) * 100
         bench_cagr = float((1 + bench).prod() ** (12 / n) - 1) * 100
 
+        # Alpha + Beta (Jensen's alpha)
         cov_mat = np.cov(strat.values, bench.values)
-        beta = float(cov_mat[0, 1] / cov_mat[1, 1])
+        beta = float(cov_mat[0, 1] / cov_mat[1, 1]) if cov_mat[1, 1] != 0 else 1.0
         alpha = float((strat.mean() - rf_m - beta * (bench.mean() - rf_m)) * 12) * 100
 
+        # Sharpe & Sortino (using time-average rf as representative scalar)
         excess_rf = strat - rf_m
-        sharpe = float(excess_rf.mean() / strat.std() * np.sqrt(12))
-        down = strat[strat < rf_m]
-        sortino = float(excess_rf.mean() / down.std() * np.sqrt(12)) if len(down) > 1 else 0.0
+        sharpe = float(excess_rf.mean() / strat.std() * np.sqrt(12)) if strat.std() > 0 else 0.0
+        downside = strat[strat < rf_m]
+        sortino = float(excess_rf.mean() / downside.std() * np.sqrt(12)) if len(downside) > 1 else 0.0
 
+        # Max drawdown
         cum = (1 + strat).cumprod()
         roll_max = cum.cummax()
         dd = (cum - roll_max) / roll_max
         max_dd = float(dd.min()) * 100
         calmar = float(cagr / abs(max_dd)) if max_dd != 0 else 0.0
 
+        # Win rate
         outperf = int((strat > bench).sum())
         win_rate = float(outperf / n) * 100
 
-        # Annual returns
+        # Annual returns (index is always DatetimeIndex at this point)
         annual_strat = strat.resample("YE").apply(lambda x: float((1 + x).prod() - 1) * 100)
         annual_bench = bench.resample("YE").apply(lambda x: float((1 + x).prod() - 1) * 100)
-        annual = [
-            AnnualReturn(
+
+        annual = []
+        for d, s, b in zip(annual_strat.index, annual_strat.values, annual_bench.values):
+            ym_yr = f"{d.year:04d}01"
+            annual.append(AnnualReturn(
                 year=d.year,
-                strategy_pct=round(s, 1),
-                benchmark_pct=round(b, 1),
-                excess_pct=round(s - b, 1),
-                regime=self._regime_for(d),
-            )
-            for d, s, b in zip(annual_strat.index, annual_strat.values, annual_bench.values)
-        ]
+                strategy_pct=round(float(s), 1),
+                benchmark_pct=round(float(b), 1),
+                excess_pct=round(float(s - b), 1),
+                regime=self._regime_for(ym_yr),
+            ))
+
+        # Top/worst contributors: (ticker, year) pairs ranked by contribution
+        contributors = self._rank_contributors(returns, strat)
+
+        start_str = str(returns.index[0].date())
+        end_str = str(returns.index[-1].date())
 
         metrics = BacktestMetrics(
             cagr_pct=round(cagr, 1),
@@ -208,8 +244,8 @@ class BacktestAgent(Agent):
             max_drawdown_pct=round(max_dd, 1),
             calmar_ratio=round(calmar, 2),
             win_rate_pct=round(win_rate, 1),
-            backtest_start=str(strat.index[0].date()),
-            backtest_end=str(strat.index[-1].date()),
+            backtest_start=start_str,
+            backtest_end=end_str,
             total_months=n,
             outperformance_months=outperf,
         )
@@ -218,22 +254,49 @@ class BacktestAgent(Agent):
             strategy_name="Investment Clock Sector Rotation",
             metrics=metrics,
             annual_returns=annual,
-            top_contributors=["Computed from live data"],
-            worst_contributors=["Computed from live data"],
+            top_contributors=contributors["top"],
+            worst_contributors=contributors["worst"],
             methodology=(
                 "Monthly equal-weight rotation into regime-favored sectors. "
-                "Regime determined by Merrill Lynch Investment Clock classification."
+                "STAGFLATION → Energy/Staples (XOM, CVX, MPC, KO); "
+                "INFLATION → Energy/Financials (XOM, CVX, JPM, FCX); "
+                "REFLATION → Tech/Materials/Financials (MSFT, FCX, JPM, KO); "
+                "DEFLATION → Defensives (KO, ABBV, MSFT, JPM). Benchmark: SPY total return."
             ),
+            computed=True,
+            data_source=data_source,
         )
 
-    def _regime_for(self, date: Any) -> str:
-        ym = f"{date.year:04d}{date.month:02d}"
+    def _rank_contributors(self, returns: pd.DataFrame, strat: pd.Series) -> dict:
+        """Identify which ticker-years drove the best and worst excess returns."""
+        # returns.index is DatetimeIndex at this point (normalised in _compute_from_prices)
+        regime_map: dict[Any, list[str]] = {}
+        for idx in returns.index:
+            ym = f"{idx.year:04d}{idx.month:02d}"
+            regime_map[idx] = _REGIME_PORTFOLIO.get(self._regime_for(ym), [])
+
+        contributions: list[tuple[float, str]] = []
+        for date_idx in returns.index:
+            tickers_in = regime_map.get(date_idx, [])
+            yr = date_idx.year
+            for t in tickers_in:
+                if t in returns.columns:
+                    r = float(returns.at[date_idx, t])
+                    if not pd.isna(r):
+                        contributions.append((r, f"{t} {yr}"))
+
+        contributions.sort(key=lambda x: x[0])
+        worst = [c[1] for c in contributions[:4]]
+        top = [c[1] for c in reversed(contributions[-4:])]
+        return {"top": top, "worst": worst}
+
+    def _regime_for(self, ym: str) -> str:
         for start, end, regime in _REGIME_PERIODS:
             if start <= ym <= end:
                 return regime
         log.warning(
-            "_regime_for: %s falls outside _REGIME_PERIODS (ends 202406) — "
-            "defaulting to REFLATION. Extend _REGIME_PERIODS for accurate live backtest.",
+            "_regime_for: %s has no entry in _REGIME_PERIODS — defaulting to REFLATION. "
+            "Add an entry covering this period.",
             ym,
         )
         return "REFLATION"

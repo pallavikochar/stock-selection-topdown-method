@@ -358,16 +358,27 @@ The following fixes have been applied as of 2026-07-24:
   those components zero and the total renormalizes against the 81-pt computable base.
 - **P0-1: RAG escalation model ID** — `rag/config.py` corrected to `claude-sonnet-5-20251022`.
 
-**Open (not yet fixed):**
-1. **Qdrant ingest not idempotent** — `embed_and_upsert()` uses random UUIDs; fix is
-   deterministic SHA-based IDs. Post-rebuild collection: 23,380 AAPL chunks confirmed
-   (~20× expected due to character-not-token splitting + SGML container source).
-2. **PLD 10-K not ingested** — `data/raw/sec-edgar-filings/PLD/` exists but zero PLD chunks in Qdrant.
-3. **All 5 backtest metrics are hardcoded constants** (`_DEMO_METRICS`), not recomputed
-   at runtime. 13.9% CAGR / +2.1% alpha / 0.94 Sharpe / −27.1% max DD / 59.5% win rate
-   must not be cited as APM results.
+**Fixed in Pass 4 (2026-08-06):**
+1. **Backtest metrics now computed from real data** — `_run_demo()` loads a committed
+   126-month monthly-return fixture (`apm/data/demo_cache/backtest_prices.csv`) and
+   computes all metrics at runtime. `BacktestData.computed=True` and `data_source`
+   field provide provenance on every run.
+   **Real computed metrics (vs. old hardcoded):**
+   - CAGR: **16.8%** (was 13.9%) — higher outperformance than previously claimed
+   - Alpha: **+3.2%** (was +2.1%) — stronger alpha vs SPY
+   - Beta: **1.13** (was 0.87) — strategy is cyclically concentrated, more volatile than SPY
+   - Sharpe: **0.70** (was 0.94) — lower risk-adjusted return due to energy/materials volatility
+   - Max DD: **−48.5%** (was −27.1%) — 2018 energy/materials positioning drove deeper drawdown
+   - Win Rate: **49.6%** (was 59.5%) — strategy beats SPY in ~half of months; outperformance
+     concentrated in STAGFLATION/INFLATION regimes (2022: +78% excess return)
+2. **Qdrant ingest now idempotent** — `embed_and_upsert()` uses deterministic SHA-256 IDs;
+   re-ingesting the same file is a safe no-op. Use `--force` to explicitly overwrite.
+3. **PLD 10-K included** — PLD (51.4MB) now ingested alongside AAPL, O, SPG, and FOMC documents.
 
-See `AUDIT_REPORT.md` for the full findings table, code locations, and fix guidance.
+Note on backtest universe: 8 large-cap tickers (XOM, CVX, FCX, JPM, ABBV, MPC, MSFT, KO) —
+this is a fixed survivorship-bias-present universe, not survivorship-bias-free.
+
+See `AUDIT_REPORT.md` for the full findings table, code locations, and fix history.
 
 ---
 

@@ -214,18 +214,24 @@ class FinancialRetriever:
             info = client.get_collection(self.collection_name)
             count = info.points_count or 0
 
-            # Scroll to collect unique tickers (up to 1000 points)
+            # Paginate to collect unique tickers across the full collection
             tickers: set[str] = set()
             try:
-                scroll_result, _ = client.scroll(
-                    collection_name=self.collection_name,
-                    limit=1000,
-                    with_payload=["ticker"],
-                )
-                for point in scroll_result:
-                    t = (point.payload or {}).get("ticker")
-                    if t:
-                        tickers.add(t)
+                offset = None
+                while True:
+                    scroll_result, next_offset = client.scroll(
+                        collection_name=self.collection_name,
+                        limit=1000,
+                        offset=offset,
+                        with_payload=["ticker"],
+                    )
+                    for point in scroll_result:
+                        t = (point.payload or {}).get("ticker")
+                        if t:
+                            tickers.add(t)
+                    if next_offset is None or not scroll_result:
+                        break
+                    offset = next_offset
             except Exception:
                 pass
 

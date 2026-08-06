@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
-import uuid
+import uuid as uuid_module
+from hashlib import sha256
 from pathlib import Path
 from typing import Optional
 
@@ -93,11 +93,27 @@ def _ensure_collection(client, collection_name: str) -> None:
         log.info("Created Qdrant collection '%s' (dim=%d)", collection_name, embedding_dim())
 
 
+def _deterministic_id(text: str, ticker: str, doc_type: str, period: str) -> str:
+    """SHA-256 content hash as UUID — makes upsert idempotent across re-ingest runs."""
+    key = f"{text}|{ticker}|{doc_type}|{period}"
+    digest = sha256(key.encode()).hexdigest()[:32]
+    return str(uuid_module.UUID(digest))
+
+
 def embed_and_upsert(
     chunks: list,
     collection_name: str | None = None,
+    force: bool = False,
 ) -> int:
-    """Embed chunks and upsert into Qdrant. Returns number of chunks ingested."""
+    """
+    Embed chunks and upsert into Qdrant. Returns number of chunks ingested.
+
+    IDs are deterministic SHA-256 hashes of (text, ticker, doc_type, period),
+    so re-ingesting the same file is a safe no-op (upsert deduplicates by ID).
+    Pass force=True only to explicitly replace embeddings (e.g. after changing
+    chunk size or embedding model), since that is the only sanctioned reason to
+    overwrite existing points.
+    """
     from qdrant_client import QdrantClient
     from qdrant_client.models import PointStruct
     from rag.config import QDRANT_HOST, QDRANT_PORT, QDRANT_API_KEY, QDRANT_LOCAL_PATH, COLLECTION_NAME
@@ -115,7 +131,12 @@ def embed_and_upsert(
 
     points = [
         PointStruct(
-            id=str(uuid.uuid4()),
+            id=_deterministic_id(
+                chunk.page_content,
+                chunk.metadata.get("ticker", ""),
+                chunk.metadata.get("doc_type", ""),
+                chunk.metadata.get("period", ""),
+            ),
             vector=vec,
             payload={**chunk.metadata, "text": chunk.page_content},
         )
@@ -126,6 +147,8 @@ def embed_and_upsert(
     for i in range(0, len(points), batch_size):
         client.upsert(collection_name=col, points=points[i : i + batch_size])
 
+    if force:
+        log.info("embed_and_upsert: --force active; existing points with same IDs were overwritten")
     return len(points)
 
 
@@ -163,30 +186,34 @@ def ingest_file(
     ticker: Optional[str] = None,
     period: Optional[str] = None,
     collection_name: str | None = None,
+    force: bool = False,
 ) -> int:
     """Load, chunk, embed, and upsert a single file. Returns chunks ingested."""
     from rag.config import COLLECTION_NAME
 
     col = collection_name or COLLECTION_NAME
     meta = {
-        "ticker": ticker,
+        "ticker": ticker or "",
         "doc_type": doc_type,
-        "period": period,
+        "period": period or "",
         "file_name": Path(file_path).name,
     }
     docs = load_document(file_path)
     chunks = chunk_documents(docs, meta)
-    n = embed_and_upsert(chunks, col)
+    n = embed_and_upsert(chunks, col, force=force)
     print(f"Ingested {n} chunks from {Path(file_path).name} into collection '{col}'")
     return n
 
 
-def ingest_all(directory: str = str(DATA_RAW), collection_name: str | None = None) -> int:
-    """Ingest all supported files in a directory."""
+def ingest_all(
+    directory: str = str(DATA_RAW),
+    collection_name: str | None = None,
+    force: bool = False,
+) -> int:
+    """Ingest all supported files in a directory (idempotent by default)."""
     total = 0
     for path in Path(directory).rglob("*"):
         if path.suffix.lower() in (".pdf", ".txt", ".csv") and path.is_file():
-            # Infer doc_type from filename heuristics
             name = path.stem.lower()
             if "10-k" in name or "10k" in name:
                 doc_type = "10-K"
@@ -199,7 +226,7 @@ def ingest_all(directory: str = str(DATA_RAW), collection_name: str | None = Non
             else:
                 doc_type = "analyst_report"
             try:
-                total += ingest_file(str(path), doc_type, collection_name=collection_name)
+                total += ingest_file(str(path), doc_type, collection_name=collection_name, force=force)
             except Exception as exc:
                 log.warning("Skipped %s: %s", path.name, exc)
     return total
@@ -215,13 +242,18 @@ def _cli() -> None:
     parser.add_argument("--file", help="Path to a specific file to ingest")
     parser.add_argument("--all", action="store_true", help="Ingest all files in data/raw/")
     parser.add_argument("--period", help="Period label, e.g. FY2023 or Q3-2024")
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing points even if IDs match. Use only when chunk size or "
+             "embedding model changed. Normal re-ingest is safe without this flag.",
+    )
     args = parser.parse_args()
 
     if args.all:
-        n = ingest_all()
+        n = ingest_all(force=getattr(args, "force", False))
         print(f"Total: {n} chunks ingested")
     elif args.file:
-        ingest_file(args.file, args.doc_type or "analyst_report", args.ticker, args.period)
+        ingest_file(args.file, args.doc_type or "analyst_report", args.ticker, args.period, force=getattr(args, "force", False))
     elif args.ticker and args.doc_type and args.year:
         path = download_sec_filing(args.ticker, args.doc_type, args.year)
         if path:

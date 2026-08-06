@@ -1,10 +1,17 @@
 """
 Agent 14 — SECFilingsAgent
 Extracts key financial metrics from income statement, cash flow statement,
-and balance sheet (equivalent to 10-K/10-Q analysis).
+and balance sheet.
 
-Live: yfinance financials / cashflow / balance_sheet DataFrames.
-Demo: pre-seeded data for the 8 demo tickers (approximate FY2023/FY2024 actuals).
+Data source notes:
+- Live path: yfinance `financials`, `cashflow`, and `balance_sheet` DataFrames.
+  yfinance aggregates data from Yahoo Finance / Macrotrends, which in turn
+  sources from SEC EDGAR filings — this is NOT a direct EDGAR XBRL parser.
+  Latency and coverage differ from the EDGAR full-text API. If asked about
+  EDGAR XBRL parsing or EDGAR rate limits, this agent does not demonstrate that.
+- Demo path: hardcoded FY2020-FY2023 actuals for the 8 demo tickers
+  (XOM, CVX, FCX, JPM, ABBV, MPC, MSFT, KO). These are approximate figures
+  sourced from public filings at development time, not retrieved at runtime.
 """
 
 from __future__ import annotations

@@ -111,6 +111,13 @@ class SectorData(BaseModel):
     unfavored: list[str]
     phase: ClockPhase
 
+    @model_validator(mode="after")
+    def scores_in_range(self) -> "SectorData":
+        for s in self.ranked_sectors:
+            if not (0.0 <= s.score <= 100.0):
+                raise ValueError(f"SectorScore for {s.sector} out of range: {s.score}")
+        return self
+
 
 class FactorRecommendation(BaseModel):
     factor_name: str
@@ -349,6 +356,8 @@ class BacktestData(BaseModel):
     top_contributors: list[str]
     worst_contributors: list[str]
     methodology: str
+    computed: bool = True   # True = computed from data; False = module-level placeholder
+    data_source: str = "yfinance monthly OHLCV, auto_adjust=True"
 
 
 # ── Agent 12 — LLM Analysis ───────────────────────────────────────────────────
@@ -408,6 +417,24 @@ class Context(BaseModel):
     llm_analysis: Optional[LLMAnalysisData] = None
 
 
+# ── AgentHealthRecord — data-provenance side-car emitted alongside AgentOutput ─
+
+
+class InputStatus(BaseModel):
+    field: str
+    source: Literal["live_api", "demo_cache", "hardcoded_default", "missing"]
+    value_preview: str
+
+
+class AgentHealthRecord(BaseModel):
+    agent_name: str
+    run_id: str
+    inputs: list[InputStatus]
+    real_count: int        # live_api + demo_cache
+    defaulted_count: int   # hardcoded_default
+    missing_count: int     # missing
+
+
 # ── AgentOutput — every agent writes one of these ────────────────────────────
 
 
@@ -421,6 +448,7 @@ class AgentOutput(BaseModel):
     data: Any
     warnings: list[str] = Field(default_factory=list)
     provenance: dict[str, str] = Field(default_factory=dict)
+    health: Optional[AgentHealthRecord] = None
 
     def persist(self, output_dir: Path = OUTPUT_DIR) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -463,3 +491,18 @@ class Agent(ABC):
             return AgentOutput.load(self.name, output_dir)
         except FileNotFoundError:
             return None
+
+    @staticmethod
+    def _make_health(
+        agent_name: str,
+        run_id: str,
+        inputs: list[InputStatus],
+    ) -> AgentHealthRecord:
+        return AgentHealthRecord(
+            agent_name=agent_name,
+            run_id=run_id,
+            inputs=inputs,
+            real_count=sum(1 for i in inputs if i.source in ("live_api", "demo_cache")),
+            defaulted_count=sum(1 for i in inputs if i.source == "hardcoded_default"),
+            missing_count=sum(1 for i in inputs if i.source == "missing"),
+        )

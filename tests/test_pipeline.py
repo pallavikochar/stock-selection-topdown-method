@@ -91,3 +91,37 @@ def test_recommendation_confidence_in_range():
     for r in rec_out.data.get("ranked", []):
         conf = r["conviction_score"]
         assert 0 <= conf <= 100, f"{r['ticker']}: conviction_score {conf} out of range"
+
+
+def test_backtest_computed_from_fixture():
+    """Backtest demo mode must compute from fixture, not return hardcoded constants."""
+    from apm.agents.a15_backtest import BacktestAgent
+    agent = BacktestAgent()
+    data = agent._run_demo()
+    assert data.computed is True, "BacktestData.computed must be True when using fixture"
+    assert "fixture" in data.data_source, "data_source should reference the CSV fixture"
+    m = data.metrics
+    # Metrics must be plausible (not the old hardcoded constants)
+    assert m.total_months >= 120, "Expected at least 10 years of data"
+    assert -100 < m.cagr_pct < 50, f"CAGR {m.cagr_pct} outside plausible range"
+    assert -100 < m.alpha_pct < 30, f"Alpha {m.alpha_pct} outside plausible range"
+    assert -100 < m.max_drawdown_pct < 0, "Max drawdown must be negative"
+    assert 0 < m.win_rate_pct < 100, "Win rate must be in (0, 100)"
+    # Annual returns must be computed (non-empty list)
+    assert len(data.annual_returns) >= 10
+
+
+def test_ingest_idempotency(tmp_path):
+    """Re-ingesting the same content should not create duplicate points."""
+    import tempfile
+    from rag.ingest import _deterministic_id
+
+    text = "Apple reported record revenue of $89.5 billion."
+    ticker, doc_type, period = "AAPL", "10-K", "FY2023"
+
+    id1 = _deterministic_id(text, ticker, doc_type, period)
+    id2 = _deterministic_id(text, ticker, doc_type, period)
+    assert id1 == id2, "Same content must produce same ID"
+
+    other_id = _deterministic_id(text + " (edit)", ticker, doc_type, period)
+    assert id1 != other_id, "Different content must produce different ID"
