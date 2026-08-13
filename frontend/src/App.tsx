@@ -20,7 +20,7 @@ import type {
   FundamentalProfile, LLMAnalysisData, SECFilingsData, SectorScore, Scenario, StockRecommendation, StyleData,
 } from "./lib/types";
 
-type Tab = "analysis" | "portfolio" | "profile";
+type Tab = "analysis" | "search" | "portfolio" | "profile";
 type ActivePanel = "economy" | "cycle" | "scenarios" | "sector" | "style" | "screen" | "fundamental" | "recommendations" | null;
 
 const PROCESS_STEPS = [
@@ -89,6 +89,7 @@ function SectionHeader({
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "analysis",  label: "Top-Down Analysis" },
+  { id: "search",    label: "Stock Lookup" },
   { id: "portfolio", label: "My Portfolio" },
   { id: "profile",   label: "Profile" },
 ];
@@ -278,6 +279,20 @@ export default function App() {
         <div className="sticky top-[89px] z-40 bg-green-signal/8 border-b border-green-signal/20 text-green-signal text-[11px] font-600 tracking-wide text-center py-2">
           ✓ Pipeline complete — all outputs refreshed
         </div>
+      )}
+
+      {/* ── Stock Lookup tab ──────────────────────────────────────────── */}
+      {activeTab === "search" && (
+        <main className="max-w-3xl mx-auto px-6 py-12">
+          <div className="mb-10">
+            <h2 className="text-2xl font-700 text-white tracking-tight mb-2">Stock Lookup</h2>
+            <p className="text-sm text-navy-500 leading-relaxed">
+              Run the full top-down pipeline — Economy → Sector → Fundamental → Valuation → Recommendation — on any ticker.
+              Uses cached macro context; fetches live fundamentals via yfinance. Takes ~20–40 s.
+            </p>
+          </div>
+          <TickerSearch />
+        </main>
       )}
 
       {/* ── Portfolio tab ─────────────────────────────────────────────── */}

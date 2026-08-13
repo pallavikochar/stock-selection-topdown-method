@@ -333,7 +333,16 @@ class AnnualReturn(BaseModel):
     regime: str
 
 
+class RegimeAttribution(BaseModel):
+    regime: str
+    months: int
+    strategy_cagr_pct: float
+    benchmark_cagr_pct: float
+    excess_cagr_pct: float
+
+
 class BacktestMetrics(BaseModel):
+    # Gross metrics (before transaction costs)
     cagr_pct: float
     benchmark_cagr_pct: float
     alpha_pct: float
@@ -347,16 +356,24 @@ class BacktestMetrics(BaseModel):
     backtest_end: str
     total_months: int
     outperformance_months: int
+    # Net-of-cost metrics (after round-trip transaction costs)
+    net_cagr_pct: float = 0.0
+    net_alpha_pct: float = 0.0
+    net_sharpe_ratio: float = 0.0
+    avg_turnover_pct: float = 0.0   # average one-way turnover per rebalance
+    cost_bps: float = 0.0           # round-trip cost assumption used
 
 
 class BacktestData(BaseModel):
     strategy_name: str
     metrics: BacktestMetrics
     annual_returns: list[AnnualReturn]
+    regime_attribution: list[RegimeAttribution] = Field(default_factory=list)
     top_contributors: list[str]
     worst_contributors: list[str]
     methodology: str
-    computed: bool = True   # True = computed from data; False = module-level placeholder
+    universe: str = "etfs"          # "etfs" | "stocks"
+    computed: bool = True           # True = computed from data; False = module-level placeholder
     data_source: str = "yfinance monthly OHLCV, auto_adjust=True"
 
 
